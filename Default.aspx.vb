@@ -105,7 +105,15 @@ Public Class DefaultPage
         Next
 
         ' 2. Department comparison scores
-        Dim dtDepts As DataTable = Database.ExecuteDataTable("SELECT Code, ComplianceScore FROM Departments ORDER BY ComplianceScore DESC")
+        Dim dtDepts As DataTable = Database.ExecuteDataTable(
+            "SELECT e.Department As Code, " &
+            "COALESCE(CAST(SUM(CASE WHEN r.Status = 'ACTIVE' OR r.Status = 'WARNING' THEN 1 ELSE 0 END) * 100.0 / COUNT(r.Id) AS REAL), 100.0) As ComplianceScore " &
+            "FROM Employee e " &
+            "LEFT JOIN Vehicles v ON e.EmployeeId = v.EmployeeId " &
+            "LEFT JOIN ComplianceRecords r ON v.Id = r.VehicleId " &
+            "WHERE e.Department IS NOT NULL AND e.Department <> '' " &
+            "GROUP BY e.Department " &
+            "ORDER BY ComplianceScore DESC")
         Dim deptNames As New List(Of String)()
         Dim deptScores As New List(Of Double)()
         For Each row As DataRow In dtDepts.Rows
@@ -125,11 +133,11 @@ Public Class DefaultPage
     Private Sub LoadDepartmentDdl()
         If ddlAlertDept Is Nothing Then Return
         
-        Dim dt As DataTable = Database.ExecuteDataTable("SELECT Id, Code FROM Departments ORDER BY Code ASC")
+        Dim dt As DataTable = Database.ExecuteDataTable("SELECT DISTINCT Department As Code FROM Employee WHERE Department IS NOT NULL AND Department <> '' ORDER BY Department ASC")
         ddlAlertDept.Items.Clear()
         ddlAlertDept.Items.Add(New ListItem("All Divisions", ""))
         For Each row As DataRow In dt.Rows
-            ddlAlertDept.Items.Add(New ListItem(row("Code").ToString(), row("Id").ToString()))
+            ddlAlertDept.Items.Add(New ListItem(row("Code").ToString(), row("Code").ToString()))
         Next
     End Sub
 
@@ -137,10 +145,9 @@ Public Class DefaultPage
         Dim role As String = Session("Role").ToString()
         Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
 
-        Dim sql As String = "SELECT r.Id, r.LicenseType, r.ExpiryDate, r.Status, v.VehicleNumber, d.Code As DepartmentCode " &
+        Dim sql As String = "SELECT r.Id, r.LicenseType, r.ExpiryDate, r.Status, v.VehicleNumber, v.Department As DepartmentCode " &
                            "FROM ComplianceRecords r " &
                            "INNER JOIN Vehicles v ON r.VehicleId = v.Id " &
-                           "INNER JOIN Departments d ON v.DepartmentId = d.Id " &
                            "WHERE 1=1"
 
         Dim params As New List(Of SQLiteParameter)()
@@ -152,8 +159,8 @@ Public Class DefaultPage
 
         ' Department filter (SuperAdmin only)
         If role = "SuperAdmin" AndAlso Not String.IsNullOrEmpty(ddlAlertDept.SelectedValue) Then
-            sql &= " AND v.DepartmentId = @DeptId"
-            params.Add(New SQLiteParameter("@DeptId", Convert.ToInt32(ddlAlertDept.SelectedValue)))
+            sql &= " AND v.Department = @Dept"
+            params.Add(New SQLiteParameter("@Dept", ddlAlertDept.SelectedValue))
         End If
 
         ' Priority filter
@@ -212,15 +219,13 @@ Public Class DefaultPage
 
     ' ── Document Verification Hub (SuperAdmin only) ──
     Private Sub LoadVerificationDocs()
-        Dim sql As String = "SELECT 'VEHICLE_RC' As LicenseType, v.Id As Id, v.VehicleNumber, d.Code As DepartmentCode, doc.FileName, doc.FilePath, v.IsVerified As IsVerified " &
+        Dim sql As String = "SELECT 'VEHICLE_RC' As LicenseType, v.Id As Id, v.VehicleNumber, v.Department As DepartmentCode, doc.FileName, doc.FilePath, v.IsVerified As IsVerified " &
                            "FROM Vehicles v " &
-                           "INNER JOIN Departments d ON v.DepartmentId = d.Id " &
                            "INNER JOIN Documents doc ON v.DocumentId = doc.Id " &
                            "UNION ALL " &
-                           "SELECT r.LicenseType As LicenseType, r.Id As Id, v.VehicleNumber, d.Code As DepartmentCode, doc.FileName, doc.FilePath, r.IsVerified As IsVerified " &
+                           "SELECT r.LicenseType As LicenseType, r.Id As Id, v.VehicleNumber, v.Department As DepartmentCode, doc.FileName, doc.FilePath, r.IsVerified As IsVerified " &
                            "FROM ComplianceRecords r " &
                            "INNER JOIN Vehicles v ON r.VehicleId = v.Id " &
-                           "INNER JOIN Departments d ON v.DepartmentId = d.Id " &
                            "INNER JOIN Documents doc ON r.DocumentId = doc.Id " &
                            "ORDER BY IsVerified ASC, Id DESC"
 
@@ -309,7 +314,14 @@ Public Class DefaultPage
             Dim criticalCount As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT COUNT(*) FROM ComplianceRecords WHERE Status IN ('HIGH_CRITICAL', 'MEDIUM_CRITICAL')"))
             Dim warningCount As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT COUNT(*) FROM ComplianceRecords WHERE Status = 'WARNING'"))
 
-            Dim depts As DataTable = Database.ExecuteDataTable("SELECT Id, Name, Code, ComplianceScore FROM Departments")
+            Dim depts As DataTable = Database.ExecuteDataTable(
+                "SELECT e.Department As Name, e.Department As Code, " &
+                "COALESCE(CAST(SUM(CASE WHEN r.Status = 'ACTIVE' OR r.Status = 'WARNING' THEN 1 ELSE 0 END) * 100.0 / COUNT(r.Id) AS REAL), 100.0) As ComplianceScore " &
+                "FROM Employee e " &
+                "LEFT JOIN Vehicles v ON e.EmployeeId = v.EmployeeId " &
+                "LEFT JOIN ComplianceRecords r ON v.Id = r.VehicleId " &
+                "WHERE e.Department IS NOT NULL AND e.Department <> '' " &
+                "GROUP BY e.Department")
             Dim deptBreakdowns As New List(Of String)()
             For Each r As DataRow In depts.Rows
                 deptBreakdowns.Add("<li><strong>" & r("Code").ToString() & "</strong> (" & r("Name").ToString() & "): " & r("ComplianceScore").ToString() & "%</li>")
@@ -390,16 +402,16 @@ Public Class DefaultPage
                     If computedStatus <> "ACTIVE" Then
                         alertsCount += 1
                         Dim plateObj As Object = Database.ExecuteScalar("SELECT VehicleNumber FROM Vehicles WHERE Id = " & vehicleId)
-                        Dim deptIdObj As Object = Database.ExecuteScalar("SELECT DepartmentId FROM Vehicles WHERE Id = " & vehicleId)
+                        Dim deptObj As Object = Database.ExecuteScalar("SELECT Department FROM Vehicles WHERE Id = " & vehicleId)
                         
                         Dim plateNum As String = If(plateObj IsNot Nothing, plateObj.ToString(), "N/A")
-                        Dim deptId As Integer = If(deptIdObj IsNot Nothing, Convert.ToInt32(deptIdObj), 0)
+                        Dim dept As String = If(deptObj IsNot Nothing, deptObj.ToString(), "")
 
                         Dim alertMessage As String = r("LicenseType").ToString() & " certificate for vehicle " & plateNum & " is now " & computedStatus & "."
                         Dim title As String = "Compliance Alert: " & r("LicenseType").ToString()
                         Dim typeVal As String = If(computedStatus = "EXPIRED", "EXPIRED", If(computedStatus = "WARNING", "WARNING", "CRITICAL"))
 
-                        Database.ExecuteNonQuery("INSERT INTO Notifications (VehicleId, DepartmentId, Title, Message, Type, Status, CreatedAt) VALUES (" & vehicleId & ", " & deptId & ", @Title, @Msg, '" & typeVal & "', 'UNREAD', datetime('now'))", New SQLiteParameter("@Title", title), New SQLiteParameter("@Msg", alertMessage))
+                        Database.ExecuteNonQuery("INSERT INTO Notifications (VehicleId, Department, Title, Message, Type, Status, CreatedAt) VALUES (" & vehicleId & ", @Dept, @Title, @Msg, @TypeVal, 'UNREAD', datetime('now'))", New SQLiteParameter("@Dept", dept), New SQLiteParameter("@Title", title), New SQLiteParameter("@Msg", alertMessage), New SQLiteParameter("@TypeVal", typeVal))
 
                         ' Dispatch email alerts to admins
                         Dim alertSubject As String = "IOCL FLEET CRITICAL COMPLIANCE ALERT: " & plateNum & " (" & r("LicenseType").ToString() & ")"

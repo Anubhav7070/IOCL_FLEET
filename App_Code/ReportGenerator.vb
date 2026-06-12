@@ -60,17 +60,16 @@ Public Class ReportGenerator
         Return c
     End Function
 
-    Public Shared Function GenerateCompliancePdf(ByVal departmentId As Integer) As Byte()
-        Dim sql As String = "SELECT v.VehicleNumber, v.VehicleType, v.OverallStatus, d.Name As DeptName, " &
+    Public Shared Function GenerateCompliancePdf(ByVal department As String) As Byte()
+        Dim sql As String = "SELECT v.VehicleNumber, v.VehicleType, v.OverallStatus, v.Department As DeptName, " &
                            "r.LicenseType, r.LicenseNumber, r.IssuingAuthority, r.IssueDate, r.ExpiryDate, r.Status " &
                            "FROM ComplianceRecords r " &
-                           "INNER JOIN Vehicles v ON r.VehicleId = v.Id " &
-                           "INNER JOIN Departments d ON v.DepartmentId = d.Id"
+                           "INNER JOIN Vehicles v ON r.VehicleId = v.Id"
 
         Dim parameters As New List(Of SQLiteParameter)()
-        If departmentId > 0 Then
-            sql &= " WHERE v.DepartmentId = @DeptId"
-            parameters.Add(New SQLiteParameter("@DeptId", departmentId))
+        If Not String.IsNullOrEmpty(department) AndAlso department <> "0" Then
+            sql &= " WHERE v.Department = @Dept"
+            parameters.Add(New SQLiteParameter("@Dept", department))
         End If
         sql &= " ORDER BY v.VehicleNumber, r.LicenseType"
 
@@ -230,17 +229,16 @@ Public Class ReportGenerator
         End Using
     End Function
 
-    Public Shared Function GenerateComplianceExcel(ByVal departmentId As Integer) As Byte()
-        Dim sql As String = "SELECT v.VehicleNumber, v.VehicleType, v.OverallStatus, d.Name As DeptName, " &
+    Public Shared Function GenerateComplianceExcel(ByVal department As String) As Byte()
+        Dim sql As String = "SELECT v.VehicleNumber, v.VehicleType, v.OverallStatus, v.Department As DeptName, " &
                            "r.LicenseType, r.LicenseNumber, r.IssuingAuthority, r.IssueDate, r.ExpiryDate, r.Status " &
                            "FROM ComplianceRecords r " &
-                           "INNER JOIN Vehicles v ON r.VehicleId = v.Id " &
-                           "INNER JOIN Departments d ON v.DepartmentId = d.Id"
+                           "INNER JOIN Vehicles v ON r.VehicleId = v.Id"
 
         Dim parameters As New List(Of SQLiteParameter)()
-        If departmentId > 0 Then
-            sql &= " WHERE v.DepartmentId = @DeptId"
-            parameters.Add(New SQLiteParameter("@DeptId", departmentId))
+        If Not String.IsNullOrEmpty(department) AndAlso department <> "0" Then
+            sql &= " WHERE v.Department = @Dept"
+            parameters.Add(New SQLiteParameter("@Dept", department))
         End If
         sql &= " ORDER BY v.VehicleNumber, r.LicenseType"
 

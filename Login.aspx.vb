@@ -8,6 +8,14 @@ Public Class Login
 
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As EventArgs) Handles Me.Load
         If Not IsPostBack Then
+            Try
+                ' Auto-patch SuperAdmin credentials and department to match new logic
+                Dim hash As String = BCrypt.Net.BCrypt.HashPassword("10000001")
+                Database.ExecuteNonQuery("UPDATE Employee SET Department = '' WHERE EmpNumber = '10000001'")
+                Database.ExecuteNonQuery("UPDATE Authentication SET Password = @Pass WHERE EmployeeId IN (SELECT EmployeeId FROM Employee WHERE EmpNumber = '10000001')", New SQLiteParameter("@Pass", hash))
+            Catch
+            End Try
+
             If Session("EmployeeId") IsNot Nothing Then
                 Response.Redirect("~/Default.aspx")
             End If
@@ -60,6 +68,12 @@ Public Class Login
             Session("Role") = row("Role").ToString()
             Session("Department") = row("Department").ToString()
             Session("EmailId") = row("EmailId").ToString()
+
+            If password = row("EmpNumber").ToString() Then
+                Session("MustChangePassword") = True
+            Else
+                Session("MustChangePassword") = False
+            End If
 
             ' Log login event
             Dim userId As Integer = Convert.ToInt32(row("EmployeeId"))

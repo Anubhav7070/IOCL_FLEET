@@ -18,11 +18,11 @@ Public Class ReportsPage
     End Sub
 
     Private Sub LoadDepartments()
-        Dim dt As DataTable = Database.ExecuteDataTable("SELECT Id, Code, Name FROM Departments ORDER BY Code")
+        Dim dt As DataTable = Database.ExecuteDataTable("SELECT DISTINCT Department FROM Employee WHERE Department IS NOT NULL AND Department <> '' ORDER BY Department")
         ddlDept.Items.Clear()
         ddlDept.Items.Add(New System.Web.UI.WebControls.ListItem("All Departments", "0"))
         For Each row As DataRow In dt.Rows
-            ddlDept.Items.Add(New System.Web.UI.WebControls.ListItem(row("Code").ToString() & " - " & row("Name").ToString(), row("Id").ToString()))
+            ddlDept.Items.Add(New System.Web.UI.WebControls.ListItem(row("Department").ToString(), row("Department").ToString()))
         Next
     End Sub
 
@@ -31,24 +31,48 @@ Public Class ReportsPage
         lblTotalLicenses.Text = Database.ExecuteScalar("SELECT COUNT(*) FROM ComplianceRecords").ToString()
         Dim expiring As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT COUNT(*) FROM ComplianceRecords WHERE Status IN ('EXPIRED','HIGH_CRITICAL','MEDIUM_CRITICAL','WARNING')"))
         lblExpiring.Text = expiring.ToString()
-        Dim avgScore As Object = Database.ExecuteScalar("SELECT AVG(ComplianceScore) FROM Departments")
-        lblAvgScore.Text = If(avgScore Is Nothing OrElse Convert.IsDBNull(avgScore), "0", Math.Round(Convert.ToDouble(avgScore), 1).ToString("0.0"))
 
-        ' Load department breakdown
+        ' Load department breakdown dynamically
         Dim deptDt As DataTable = Database.ExecuteDataTable(
-            "SELECT d.Id, d.Name, d.Division, d.ComplianceScore, COUNT(DISTINCT v.Id) As VehicleCount " &
-            "FROM Departments d LEFT JOIN Vehicles v ON v.DepartmentId = d.Id " &
-            "GROUP BY d.Id, d.Name, d.Division, d.ComplianceScore ORDER BY d.ComplianceScore DESC")
+            "SELECT e.Department As Name, " &
+            "COALESCE(CAST(SUM(CASE WHEN r.Status = 'ACTIVE' OR r.Status = 'WARNING' THEN 1 ELSE 0 END) * 100.0 / COUNT(r.Id) AS REAL), 100.0) As ComplianceScore, " &
+            "COUNT(DISTINCT v.Id) As VehicleCount " &
+            "FROM Employee e " &
+            "LEFT JOIN Vehicles v ON e.EmployeeId = v.EmployeeId " &
+            "LEFT JOIN ComplianceRecords r ON v.Id = r.VehicleId " &
+            "WHERE e.Department IS NOT NULL AND e.Department <> '' " &
+            "GROUP BY e.Department " &
+            "ORDER BY ComplianceScore DESC")
+
+        Dim totalScore As Double = 0
+        For Each row As DataRow In deptDt.Rows
+            totalScore += Convert.ToDouble(row("ComplianceScore"))
+        Next
+        Dim avgScore As Double = If(deptDt.Rows.Count > 0, totalScore / deptDt.Rows.Count, 100.0)
+        lblAvgScore.Text = Math.Round(avgScore, 1).ToString("0.0")
+
+        ' Set Division as static label
+        deptDt.Columns.Add("Division", GetType(String))
+        For Each row As DataRow In deptDt.Rows
+            row("Division") = "Panipat Refinery"
+        Next
+
+        ' Add Id field to avoid breaking Eval("Id") in UI
+        deptDt.Columns.Add("Id", GetType(String))
+        For Each row As DataRow In deptDt.Rows
+            row("Id") = row("Name").ToString()
+        Next
+
         rptDepts.DataSource = deptDt
         rptDepts.DataBind()
     End Sub
 
     Protected Sub btnDownloadPDF_Click(ByVal sender As Object, ByVal e As EventArgs)
-        Dim deptId As Integer = Convert.ToInt32(ddlDept.SelectedValue)
+        Dim deptVal As String = ddlDept.SelectedValue
         Try
-            Dim pdfBytes As Byte() = ReportGenerator.GenerateCompliancePdf(deptId)
-            Dim deptName As String = If(deptId = 0, "All", ddlDept.SelectedItem.Text.Split("-"c)(0).Trim())
-            Dim fileName As String = "IOCL_Compliance_" & deptName & "_" & DateTime.Now.ToString("yyyyMMdd") & ".pdf"
+            Dim pdfBytes As Byte() = ReportGenerator.GenerateCompliancePdf(deptVal)
+            Dim deptName As String = If(deptVal = "0", "All", ddlDept.SelectedItem.Text.Trim())
+            Dim fileName As String = "IOCL_Compliance_" & deptName.Replace(" ", "_") & "_" & DateTime.Now.ToString("yyyyMMdd") & ".pdf"
             Response.Clear()
             Response.ContentType = "application/pdf"
             Response.AddHeader("Content-Disposition", "attachment; filename=" & fileName)
@@ -62,11 +86,11 @@ Public Class ReportsPage
     End Sub
 
     Protected Sub btnDownloadExcel_Click(ByVal sender As Object, ByVal e As EventArgs)
-        Dim deptId As Integer = Convert.ToInt32(ddlDept.SelectedValue)
+        Dim deptVal As String = ddlDept.SelectedValue
         Try
-            Dim xlsBytes As Byte() = ReportGenerator.GenerateComplianceExcel(deptId)
-            Dim deptName As String = If(deptId = 0, "All", ddlDept.SelectedItem.Text.Split("-"c)(0).Trim())
-            Dim fileName As String = "IOCL_Compliance_" & deptName & "_" & DateTime.Now.ToString("yyyyMMdd") & ".xls"
+            Dim xlsBytes As Byte() = ReportGenerator.GenerateComplianceExcel(deptVal)
+            Dim deptName As String = If(deptVal = "0", "All", ddlDept.SelectedItem.Text.Trim())
+            Dim fileName As String = "IOCL_Compliance_" & deptName.Replace(" ", "_") & "_" & DateTime.Now.ToString("yyyyMMdd") & ".xls"
             Response.Clear()
             Response.ContentType = "application/vnd.ms-excel"
             Response.AddHeader("Content-Disposition", "attachment; filename=" & fileName)
@@ -80,11 +104,11 @@ Public Class ReportsPage
     End Sub
 
     Protected Sub rptDepts_Command(ByVal sender As Object, ByVal e As System.Web.UI.WebControls.CommandEventArgs)
-        Dim deptId As Integer = Convert.ToInt32(e.CommandArgument)
+        Dim deptVal As String = e.CommandArgument.ToString()
         If e.CommandName = "DeptPDF" Then
             Try
-                Dim pdfBytes As Byte() = ReportGenerator.GenerateCompliancePdf(deptId)
-                Dim fileName As String = "IOCL_Dept_" & deptId & "_Report_" & DateTime.Now.ToString("yyyyMMdd") & ".pdf"
+                Dim pdfBytes As Byte() = ReportGenerator.GenerateCompliancePdf(deptVal)
+                Dim fileName As String = "IOCL_Dept_" & deptVal.Replace(" ", "_") & "_Report_" & DateTime.Now.ToString("yyyyMMdd") & ".pdf"
                 Response.Clear()
                 Response.ContentType = "application/pdf"
                 Response.AddHeader("Content-Disposition", "attachment; filename=" & fileName)
@@ -97,8 +121,8 @@ Public Class ReportsPage
             End Try
         ElseIf e.CommandName = "DeptExcel" Then
             Try
-                Dim xlsBytes As Byte() = ReportGenerator.GenerateComplianceExcel(deptId)
-                Dim fileName As String = "IOCL_Dept_" & deptId & "_Report_" & DateTime.Now.ToString("yyyyMMdd") & ".xls"
+                Dim xlsBytes As Byte() = ReportGenerator.GenerateComplianceExcel(deptVal)
+                Dim fileName As String = "IOCL_Dept_" & deptVal.Replace(" ", "_") & "_Report_" & DateTime.Now.ToString("yyyyMMdd") & ".xls"
                 Response.Clear()
                 Response.ContentType = "application/vnd.ms-excel"
                 Response.AddHeader("Content-Disposition", "attachment; filename=" & fileName)

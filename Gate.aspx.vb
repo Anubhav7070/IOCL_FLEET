@@ -74,7 +74,7 @@ Public Class GatePage
         pnlClearance.Visible = False
 
         Try
-            Dim sql As String = "SELECT v.*, d.Name As DeptName FROM Vehicles v INNER JOIN Departments d ON v.DepartmentId = d.Id WHERE v.VehicleNumber = @Plate LIMIT 1"
+            Dim sql As String = "SELECT v.*, v.Department As DeptName FROM Vehicles v WHERE v.VehicleNumber = @Plate LIMIT 1"
             Dim dt As DataTable = Database.ExecuteDataTable(sql, New SQLiteParameter("@Plate", plate))
             If dt.Rows.Count = 0 Then
                 pnlAwaiting.Visible = True
@@ -84,10 +84,10 @@ Public Class GatePage
 
             Dim row As DataRow = dt.Rows(0)
             Dim vehId As Integer = Convert.ToInt32(row("Id"))
-            Dim deptId As Integer = Convert.ToInt32(row("DepartmentId"))
+            Dim dept As String = row("Department").ToString()
 
             hdnVehicleId.Value = vehId.ToString()
-            hdnDepartmentId.Value = deptId.ToString()
+            hdnDepartmentId.Value = dept
 
             ' Recalculate status of this vehicle before checking entry
             Compliance.UpdateVehicleStatus(vehId)
@@ -153,14 +153,14 @@ Public Class GatePage
             Dim userId As Integer = Convert.ToInt32(Session("EmployeeId"))
             Dim username As String = Session("EmployeeName").ToString()
             Dim vehicleId As Integer = Convert.ToInt32(hdnVehicleId.Value)
-            Dim deptId As Integer = Convert.ToInt32(hdnDepartmentId.Value)
+            Dim dept As String = hdnDepartmentId.Value
             Dim plate As String = lblVehPlate.Text
             Dim remarks As String = txtRemarks.Text.Trim()
 
             Dim action As String = If(allowed, "GATE_ENTRY_ALLOW", "GATE_ENTRY_DENY")
             Dim desc As String = "Gateman " & username & If(allowed, " allowed", " denied") & " entry for vehicle " & plate & ". Reason/Remarks: " & If(String.IsNullOrEmpty(remarks), "None", remarks)
 
-            Dim sql As String = "INSERT INTO AuditLogs (UserId, Username, Action, Description, IpAddress, Timestamp, VehicleId, DepartmentId) VALUES (@UserId, @User, @Action, @Desc, @IP, datetime('now'), @VehicleId, @DeptId);"
+            Dim sql As String = "INSERT INTO AuditLogs (UserId, Username, Action, Description, IpAddress, Timestamp, VehicleId, Department) VALUES (@UserId, @User, @Action, @Desc, @IP, datetime('now'), @VehicleId, @Dept);"
             
             Database.ExecuteNonQuery(sql, _
                 New SQLiteParameter("@UserId", userId), _
@@ -169,7 +169,7 @@ Public Class GatePage
                 New SQLiteParameter("@Desc", desc), _
                 New SQLiteParameter("@IP", Request.UserHostAddress), _
                 New SQLiteParameter("@VehicleId", vehicleId), _
-                New SQLiteParameter("@DeptId", deptId))
+                New SQLiteParameter("@Dept", dept))
 
             Dim decisionMsg As String = If(allowed, "ALLOWED", "DENIED")
             ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Gate entry " & decisionMsg & " logged successfully.');", True)
@@ -189,7 +189,7 @@ Public Class GatePage
         If String.IsNullOrEmpty(plate) Then Return
 
         Try
-            Dim sql As String = "SELECT v.*, d.Name As DeptName FROM Vehicles v INNER JOIN Departments d ON v.DepartmentId = d.Id WHERE v.VehicleNumber = @Plate LIMIT 1"
+            Dim sql As String = "SELECT v.*, v.Department As DeptName FROM Vehicles v WHERE v.VehicleNumber = @Plate LIMIT 1"
             Dim dt As DataTable = Database.ExecuteDataTable(sql, New SQLiteParameter("@Plate", plate))
             If dt.Rows.Count = 0 Then Return
 
@@ -200,7 +200,7 @@ Public Class GatePage
             Dim type As String = row("VehicleType").ToString()
             Dim driver As String = If(row("DriverName") Is DBNull.Value OrElse String.IsNullOrEmpty(row("DriverName").ToString()), "N/A", row("DriverName").ToString())
             Dim vendor As String = If(row("VendorName") Is DBNull.Value OrElse String.IsNullOrEmpty(row("VendorName").ToString()), "N/A", row("VendorName").ToString())
-            Dim dept As String = row("DeptName").ToString()
+            Dim dept As String = row("Department").ToString()
             Dim isVerified As Boolean = Convert.ToBoolean(row("IsVerified"))
             Dim status As String = If(row("OverallStatus").ToString() = "FULLY_COMPLIANT" AndAlso isVerified, "APPROVED", "DENIED")
 

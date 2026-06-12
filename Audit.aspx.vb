@@ -32,40 +32,32 @@ Public Class AuditPage
             ddlDeptFilter.Items.Clear()
             ddlDeptFilter.Items.Add(New ListItem("All Divisions", ""))
             
-            Dim dt As DataTable = Database.ExecuteDataTable("SELECT Id, Name FROM Departments ORDER BY Name")
+            Dim dt As DataTable = Database.ExecuteDataTable("SELECT DISTINCT Department As Name FROM Employee WHERE Department IS NOT NULL AND Department <> '' ORDER BY Department")
             For Each row As DataRow In dt.Rows
-                ddlDeptFilter.Items.Add(New ListItem(row("Name").ToString(), row("Id").ToString()))
+                ddlDeptFilter.Items.Add(New ListItem(row("Name").ToString(), row("Name").ToString()))
             Next
         End If
     End Sub
 
     Private Sub LoadAuditLogs()
         Dim role As String = Session("Role").ToString()
-        Dim sql As String = "SELECT Id, Timestamp, Username, Action, Description, IpAddress, OldValue, NewValue, DepartmentId FROM AuditLogs"
+        Dim sql As String = "SELECT Id, Timestamp, Username, Action, Description, IpAddress, OldValue, NewValue, Department FROM AuditLogs"
         
         Dim whereClauses As New List(Of String)()
         Dim parameters As New List(Of SQLiteParameter)()
 
         ' 1. Role-based Scoping
         If role = "DEPT_ADMIN" Then
+            ' DEPT_ADMIN can only see logs from their own department
             Dim userDeptName As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
-            Dim deptId As Integer = 0
-            
-            If Not String.IsNullOrEmpty(userDeptName) Then
-                Dim objDeptId As Object = Database.ExecuteScalar("SELECT Id FROM Departments WHERE Name = @Name LIMIT 1", New SQLiteParameter("@Name", userDeptName))
-                If objDeptId IsNot Nothing AndAlso Not Convert.IsDBNull(objDeptId) Then
-                    deptId = Convert.ToInt32(objDeptId)
-                End If
-            End If
-            
-            whereClauses.Add("DepartmentId = @UserDeptId")
-            parameters.Add(New SQLiteParameter("@UserDeptId", deptId))
+            whereClauses.Add("(Department = @UserDept)")
+            parameters.Add(New SQLiteParameter("@UserDept", userDeptName))
         Else
-            ' SuperAdmin filters
+            ' SuperAdmin sees ALL logs. Optional dept filter if dropdown selected.
             If ddlDeptFilter.SelectedIndex > 0 Then
-                Dim selectedDeptId As Integer = Convert.ToInt32(ddlDeptFilter.SelectedValue)
-                whereClauses.Add("DepartmentId = @SelectedDeptId")
-                parameters.Add(New SQLiteParameter("@SelectedDeptId", selectedDeptId))
+                Dim selectedDept As String = ddlDeptFilter.SelectedValue
+                whereClauses.Add("Department = @SelectedDept")
+                parameters.Add(New SQLiteParameter("@SelectedDept", selectedDept))
             End If
         End If
 
@@ -79,7 +71,7 @@ Public Class AuditPage
             sql &= " WHERE " & String.Join(" AND ", whereClauses.ToArray())
         End If
 
-        sql &= " ORDER BY Id DESC LIMIT 150"
+        sql &= " ORDER BY Id DESC LIMIT 250"
 
         Dim dt As DataTable = Database.ExecuteDataTable(sql, parameters.ToArray())
         If dt.Rows.Count = 0 Then

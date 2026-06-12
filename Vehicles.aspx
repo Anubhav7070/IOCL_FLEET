@@ -87,7 +87,7 @@
                                             </div>
                                             <div class="col-span-2 border-t border-slate-50 pt-2">
                                                 <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Department</p>
-                                                <p class="font-bold text-[#0054A6] truncate mt-0.5"><%# Eval("DeptCode") %> – <%# Eval("DeptName") %></p>
+                                                <p class="font-bold text-[#0054A6] truncate mt-0.5"><%# Eval("DeptCode") %></p>
                                             </div>
                                         </div>
 
@@ -169,7 +169,12 @@
                                 <div class="flex justify-between items-center border-b border-slate-50 py-2 text-xs">
                                     <div>
                                         <p class="font-semibold text-slate-700"><%# Eval("LicenseType").ToString().Replace("_", " ") %></p>
-                                        <p class="text-[9px] text-slate-400 font-mono mt-0.5"><%# If(Convert.IsDBNull(Eval("LicenseNumber")), "Pending Upload", Eval("LicenseNumber")) %></p>
+                                        <p class="text-[9px] text-slate-400 font-mono mt-0.5">
+                                            <%# If(Convert.IsDBNull(Eval("LicenseNumber")), "Pending Upload", Eval("LicenseNumber")) %>
+                                            <br />
+                                            Expires: <%# FmtDate(Eval("ExpiryDate")) %>
+                                            <%# If(Not Convert.IsDBNull(Eval("ExpiryDate")) AndAlso Convert.ToDateTime(Eval("ExpiryDate")) <= DateTime.Today.AddMonths(2), "<br /><span class='text-orange-500 font-bold'>Please renew this also</span>", "") %>
+                                        </p>
                                     </div>
                                     <div class="flex items-center gap-2">
                                         <span class="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase <%# GetStatusBadgeClass(Eval("Status")) %>">

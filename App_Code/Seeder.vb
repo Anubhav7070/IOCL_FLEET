@@ -14,14 +14,11 @@ Public Class Seeder
 
         Console.WriteLine("[SEED] Seeding data...")
 
-        ' 1. Seed Departments
-        Database.ExecuteNonQuery("INSERT INTO Departments (Name, Code, Description, Division, ComplianceScore) VALUES ('PR - Fire & Safety', 'PR-FS', 'Panipat Refinery: Fire Prevention, Emergency Response, Fire Tenders and Safety Equipment Fleet.', 'Panipat Refinery', 96.5), ('PR - Refinery Operations', 'PR-OPS', 'Panipat Refinery: Crude Oil Refining, Main Process Units, LPG/HSD Tanker Fleet.', 'Panipat Refinery', 89.0), ('PR - Chemical & Laboratory', 'PR-CHEM', 'Panipat Refinery: Quality Control Labs, Chemical Sampling, Catalyst & Additive Fleet.', 'Panipat Refinery', 92.3), ('PNC - Fire & Safety', 'PNC-FS', 'Panipat Naphtha Cracker: Emergency Response Unit, Fire Tender and Safety Fleet.', 'Panipat Naphtha Cracker', 97.8), ('PNC - Cracker Operations', 'PNC-OPS', 'Panipat Naphtha Cracker: Ethylene/Propylene Production, Polymer & Naphtha Tanker Fleet.', 'Panipat Naphtha Cracker', 84.5), ('PNC - Chemical & Testing', 'PNC-CHEM', 'Panipat Naphtha Cracker: Polymer QC, Feedstock Testing, Chemical Carrier Fleet.', 'Panipat Naphtha Cracker', 91.0);")
-
-        ' 2. Seed Employees
+        ' 1. Seed Employees
         Dim passwordHash As String = BCrypt.Net.BCrypt.HashPassword("password123")
 
         ' Insert SuperAdmin Employee
-        Database.ExecuteNonQuery("INSERT INTO Employee (EmpNumber, EmployeeName, Department, Designation, EmailId) VALUES ('10000001', 'Super Admin', 'PR - Fire & Safety', 'Superintendent', 'singhanubhav1562@gmail.com');")
+        Database.ExecuteNonQuery("INSERT INTO Employee (EmpNumber, EmployeeName, Department, Designation, EmailId) VALUES ('10000001', 'Super Admin', '', 'Superintendent', 'singhanubhav1562@gmail.com');")
         Dim superAdminEmpId As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT EmployeeId FROM Employee WHERE EmpNumber='10000001'"))
         Database.ExecuteNonQuery("INSERT INTO Authentication (EmployeeId, EmployeeName, Role, Password) VALUES (" & superAdminEmpId & ", 'Super Admin', 'SuperAdmin', '" & passwordHash & "');")
 
@@ -40,22 +37,19 @@ Public Class Seeder
         Dim viewerEmpId As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT EmployeeId FROM Employee WHERE EmpNumber='30000001'"))
         Database.ExecuteNonQuery("INSERT INTO Authentication (EmployeeId, EmployeeName, Role, Password) VALUES (" & viewerEmpId & ", 'Viewer Account', 'Employee', '" & passwordHash & "');")
 
-        ' 3. Seed Vehicles & Compliance Records
-        ' Get all departments from DB
-        Dim depts As DataTable = Database.ExecuteDataTable("SELECT Id, Name, Code FROM Departments")
+        ' 2. Seed Vehicles & Compliance Records
+        Dim deptList() As String = {"PR - Fire & Safety", "PR - Refinery Operations", "PR - Chemical & Laboratory", "PNC - Fire & Safety", "PNC - Cracker Operations", "PNC - Chemical & Testing"}
         Dim complianceTypes() As String = {"ROAD_PERMIT", "AGE_DETERMINATION", "PUC", "FITNESS", "EXPLOSIVE", "GREEN_CARD", "INSURANCE", "CALIBRATION"}
 
         ' Add a dummy document reference in SQLite
         Database.ExecuteNonQuery("INSERT INTO Documents (FileName, FilePath, FileType, FileSize, UploadedBy) VALUES ('seeded_document.pdf', '/uploads/seeded/iocl_sample_doc.pdf', 'application/pdf', 1024, " & superAdminEmpId & ");")
         Dim dummyDocId As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT Id FROM Documents LIMIT 1"))
 
-        For Each row As DataRow In depts.Rows
-            Dim deptId As Integer = Convert.ToInt32(row("Id"))
-            Dim deptCode As String = row("Code").ToString()
-
+        Dim idx As Integer = 1
+        For Each dept As String In deptList
             ' Vehicle A (Fully Compliant)
-            Dim plateA As String = "HR26AB110" & deptId
-            Database.ExecuteNonQuery("INSERT INTO Vehicles (VehicleNumber, VehicleType, DepartmentId, DriverName, VendorName, QrCodeUrl, OverallStatus, DocumentId, LastUpdatedBy, LastUpdatedTimestamp, IsVerified, EmployeeId) VALUES ('" & plateA & "', 'Petroleum Tanker', " & deptId & ", 'Safe Driver " & deptCode & "', 'Refinery Carrier Corp', '', 'FULLY_COMPLIANT', " & dummyDocId & ", 'system', datetime('now'), 1, " & logisticsEmpId & ");")
+            Dim plateA As String = "HR26AB110" & idx
+            Database.ExecuteNonQuery("INSERT INTO Vehicles (VehicleNumber, VehicleType, Department, DriverName, VendorName, QrCodeUrl, OverallStatus, DocumentId, LastUpdatedBy, LastUpdatedTimestamp, IsVerified, EmployeeId) VALUES ('" & plateA & "', 'Petroleum Tanker', '" & dept & "', 'Safe Driver " & idx & "', 'Refinery Carrier Corp', '', 'FULLY_COMPLIANT', " & dummyDocId & ", 'system', datetime('now'), 1, " & logisticsEmpId & ");")
             Dim vehIdA As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT Id FROM Vehicles WHERE VehicleNumber='" & plateA & "'"))
             ' Generate QR verification URL
             Dim qrUrlA As String = "/Verify.aspx?plate=" & plateA
@@ -66,8 +60,8 @@ Public Class Seeder
             Next
 
             ' Vehicle B (Near Expiry - PUC Warning)
-            Dim plateB As String = "HR26AB990" & deptId
-            Database.ExecuteNonQuery("INSERT INTO Vehicles (VehicleNumber, VehicleType, DepartmentId, DriverName, VendorName, QrCodeUrl, OverallStatus, DocumentId, LastUpdatedBy, LastUpdatedTimestamp, IsVerified, EmployeeId) VALUES ('" & plateB & "', 'Cargo Truck', " & deptId & ", 'Alert Driver " & deptCode & "', 'Refinery Carrier Corp', '', 'WARNING', " & dummyDocId & ", 'system', datetime('now'), 1, " & logisticsEmpId & ");")
+            Dim plateB As String = "HR26AB990" & idx
+            Database.ExecuteNonQuery("INSERT INTO Vehicles (VehicleNumber, VehicleType, Department, DriverName, VendorName, QrCodeUrl, OverallStatus, DocumentId, LastUpdatedBy, LastUpdatedTimestamp, IsVerified, EmployeeId) VALUES ('" & plateB & "', 'Cargo Truck', '" & dept & "', 'Alert Driver " & idx & "', 'Refinery Carrier Corp', '', 'WARNING', " & dummyDocId & ", 'system', datetime('now'), 1, " & logisticsEmpId & ");")
             Dim vehIdB As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT Id FROM Vehicles WHERE VehicleNumber='" & plateB & "'"))
             Dim qrUrlB As String = "/Verify.aspx?plate=" & plateB
             Database.ExecuteNonQuery("UPDATE Vehicles SET QrCodeUrl='" & qrUrlB & "' WHERE Id=" & vehIdB)
@@ -79,6 +73,7 @@ Public Class Seeder
 
                 Database.ExecuteNonQuery("INSERT INTO ComplianceRecords (VehicleId, LicenseType, LicenseNumber, IssuingAuthority, IssueDate, ExpiryDate, Status, DocumentId, LastUpdatedBy, LastUpdatedTimestamp, IsVerified) VALUES (" & vehIdB & ", '" & type & "', 'LIC-" & type & "-" & New Random().Next(1000, 9999) & "', 'Govt of India', '2026-06-01', '" & expiryDate & "', '" & status & "', " & dummyDocId & ", 'system', datetime('now'), 1);")
             Next
+            idx += 1
         Next
 
         ' 4. Seed Audit Trail

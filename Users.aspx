@@ -144,7 +144,7 @@
                         <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">
                             Access Key Password
                         </label>
-                        <asp:TextBox ID="txtEmpPassword" runat="server" TextMode="Password" placeholder="Enter password (leave blank to keep current if editing)" CssClass="w-full rounded-md border border-slate-200 py-2 px-3 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"></asp:TextBox>
+                        <asp:TextBox ID="txtEmpPassword" runat="server" TextMode="Password" placeholder="Leave blank to default to Employee ID" CssClass="w-full rounded-md border border-slate-200 py-2 px-3 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"></asp:TextBox>
                     </div>
 
                     <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">

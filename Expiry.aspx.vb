@@ -33,11 +33,11 @@ Public Class ExpiryPage
     End Sub
 
     Private Sub LoadFilterDepartments()
-        Dim dt As DataTable = Database.ExecuteDataTable("SELECT Id, Code, Name FROM Departments ORDER BY Code")
+        Dim dt As DataTable = Database.ExecuteDataTable("SELECT DISTINCT Department As Code FROM Employee WHERE Department IS NOT NULL AND Department <> '' ORDER BY Department")
         ddlDeptFilter.Items.Clear()
         ddlDeptFilter.Items.Add(New ListItem("All Divisions", ""))
         For Each row As DataRow In dt.Rows
-            ddlDeptFilter.Items.Add(New ListItem(row("Code").ToString() & " - " & row("Name").ToString(), row("Id").ToString()))
+            ddlDeptFilter.Items.Add(New ListItem(row("Code").ToString(), row("Code").ToString()))
         Next
     End Sub
 
@@ -45,7 +45,7 @@ Public Class ExpiryPage
         Dim role As String = Session("Role").ToString()
         Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
 
-        Dim sql As String = "SELECT r.Id, r.VehicleId, r.LicenseType, r.ExpiryDate, r.Status, v.VehicleNumber, d.Code As DeptName FROM ComplianceRecords r INNER JOIN Vehicles v ON r.VehicleId = v.Id INNER JOIN Departments d ON v.DepartmentId = d.Id WHERE r.Status IN ('EXPIRED', 'WARNING', 'MEDIUM_CRITICAL', 'HIGH_CRITICAL')"
+        Dim sql As String = "SELECT r.Id, r.VehicleId, r.LicenseType, r.ExpiryDate, r.Status, v.VehicleNumber, v.Department As DeptName FROM ComplianceRecords r INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE r.Status IN ('EXPIRED', 'WARNING', 'MEDIUM_CRITICAL', 'HIGH_CRITICAL')"
 
         Dim whereClauses As New List(Of String)()
         Dim parameters As New List(Of SQLiteParameter)()
@@ -64,8 +64,8 @@ Public Class ExpiryPage
 
         ' Apply department
         If Not String.IsNullOrEmpty(ddlDeptFilter.SelectedValue) Then
-            whereClauses.Add("v.DepartmentId = @DeptId")
-            parameters.Add(New SQLiteParameter("@DeptId", Convert.ToInt32(ddlDeptFilter.SelectedValue)))
+            whereClauses.Add("v.Department = @Dept")
+            parameters.Add(New SQLiteParameter("@Dept", ddlDeptFilter.SelectedValue))
         End If
 
         ' Apply severity filter
@@ -105,11 +105,75 @@ Public Class ExpiryPage
     End Sub
 
     Protected Sub rptAlerts_ItemCommand(ByVal source As Object, ByVal e As RepeaterCommandEventArgs)
+        Dim role As String = Session("Role").ToString()
+
         If e.CommandName = "SelectAlert" Then
             Dim recordId As Integer = Convert.ToInt32(e.CommandArgument)
-            LoadRenewalForm(recordId)
+            ' SuperAdmin cannot renew — show notification panel instead
+            If role = "SuperAdmin" Then
+                LoadNotifyPanel(recordId)
+            Else
+                LoadRenewalForm(recordId)
+            End If
+        ElseIf e.CommandName = "SendNotification" Then
+            ' SuperAdmin sends a renewal reminder notification to the vehicle owner
+            Dim recordId As Integer = Convert.ToInt32(e.CommandArgument)
+            Dim empName As String = Session("EmployeeName").ToString()
+            Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
+
+            Try
+                ' Get vehicle owner's info
+                Dim dtRec As DataTable = Database.ExecuteDataTable(
+                    "SELECT r.LicenseType, r.ExpiryDate, v.VehicleNumber, v.Id As VehId, v.Department, e.EmployeeId As OwnerId, e.EmployeeName As OwnerName, e.EmailId AS OwnerEmail " &
+                    "FROM ComplianceRecords r " &
+                    "INNER JOIN Vehicles v ON r.VehicleId = v.Id " &
+                    "INNER JOIN Employee e ON v.EmployeeId = e.EmployeeId " &
+                    "WHERE r.Id = @Id LIMIT 1",
+                    New SQLiteParameter("@Id", recordId))
+
+                If dtRec.Rows.Count > 0 Then
+                    Dim row As DataRow = dtRec.Rows(0)
+                    Dim docType As String = row("LicenseType").ToString()
+                    Dim plate As String = row("VehicleNumber").ToString()
+                    Dim dept As String = row("Department").ToString()
+                    Dim vehId As Integer = Convert.ToInt32(row("VehId"))
+                    Dim ownerId As Integer = Convert.ToInt32(row("OwnerId"))
+                    Dim ownerName As String = row("OwnerName").ToString()
+                    Dim expiry As String = row("ExpiryDate").ToString()
+
+                    Dim notifTitle As String = "Renewal Required: " & docType.Replace("_", " ") & " for " & plate
+                    Dim notifMsg As String = "SuperAdmin " & empName & " has notified you that the " & docType.Replace("_", " ") & " for vehicle " & plate & " (Expiry: " & expiry & ") needs urgent renewal. Please submit the renewal at the earliest."
+
+                    ' Insert notification for the vehicle owner
+                    Database.ExecuteNonQuery(
+                        "INSERT INTO Notifications (VehicleId, Department, Title, Message, Status, Type, CreatedAt) VALUES (@VehId, @Dept, @Title, @Msg, 'UNREAD', 'EXPIRY_REMINDER', datetime('now'));",
+                        New SQLiteParameter("@VehId", vehId),
+                        New SQLiteParameter("@Dept", dept),
+                        New SQLiteParameter("@Title", notifTitle),
+                        New SQLiteParameter("@Msg", notifMsg))
+
+                    ' Try email notification
+                    Try
+                        EmailService.NotifyEmployeeOfApproval(ownerId, plate)
+                    Catch
+                    End Try
+
+                    ' Log audit
+                    Database.ExecuteNonQuery(
+                        "INSERT INTO AuditLogs (UserId, Username, Action, Description, IpAddress, Timestamp, VehicleId, Department) VALUES (" & empId & ", @User, 'EXPIRY_NOTIFICATION_SENT', 'SuperAdmin sent renewal notification for " & docType & " of vehicle " & plate & " to " & ownerName & ".', @IP, datetime('now'), " & vehId & ", @Dept);",
+                        New SQLiteParameter("@User", empName),
+                        New SQLiteParameter("@IP", Request.UserHostAddress),
+                        New SQLiteParameter("@Dept", dept))
+
+                    ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Renewal notification sent to " & Server.HtmlEncode(ownerName) & " for vehicle " & Server.HtmlEncode(plate) & ".');", True)
+                End If
+            Catch ex As Exception
+                ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Failed to send notification: " & Server.HtmlEncode(ex.Message) & "');", True)
+            End Try
+
+            LoadAlerts()
         ElseIf e.CommandName = "VerifyDoc" Then
-            If Session("Role").ToString() <> "SuperAdmin" Then Return
+            If role <> "SuperAdmin" Then Return
             Dim recordId As Integer = Convert.ToInt32(e.CommandArgument)
             Dim empName As String = Session("EmployeeName").ToString()
             Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
@@ -121,7 +185,7 @@ Public Class ExpiryPage
                 New SQLiteParameter("@User", empName), New SQLiteParameter("@IP", Request.UserHostAddress))
             LoadAlerts()
         ElseIf e.CommandName = "RevokeDoc" Then
-            If Session("Role").ToString() <> "SuperAdmin" Then Return
+            If role <> "SuperAdmin" Then Return
             Dim recordId As Integer = Convert.ToInt32(e.CommandArgument)
             Dim empName As String = Session("EmployeeName").ToString()
             Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
@@ -166,19 +230,120 @@ Public Class ExpiryPage
 
         If dt.Rows.Count > 0 Then
             Dim recordId As Integer = Convert.ToInt32(dt.Rows(0)("Id"))
-            LoadRenewalForm(recordId)
+            If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then
+                LoadNotifyPanel(recordId)
+            Else
+                LoadRenewalForm(recordId)
+            End If
         End If
     End Sub
+
+    ' SuperAdmin-only: Load a read-only view with "Send Notification" button
+    Private Sub LoadNotifyPanel(ByVal recordId As Integer)
+        Dim sql As String = "SELECT r.*, v.VehicleNumber, v.Id As VehId FROM ComplianceRecords r INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE r.Id = @Id LIMIT 1"
+        Dim dt As DataTable = Database.ExecuteDataTable(sql, New SQLiteParameter("@Id", recordId))
+        If dt.Rows.Count = 0 Then Return
+
+        Dim row As DataRow = dt.Rows(0)
+        hdnRecordId.Value = recordId.ToString()
+        hdnVehicleId.Value = row("VehId").ToString()
+        txtVehPlate.Text = row("VehicleNumber").ToString()
+        txtDocType.Text = row("LicenseType").ToString()
+        txtDocNumber.Text = If(row("LicenseNumber") Is DBNull.Value, "N/A", row("LicenseNumber").ToString())
+        txtAuthority.Text = If(row("IssuingAuthority") Is DBNull.Value, "N/A", row("IssuingAuthority").ToString())
+        txtIssueDate.Text = If(row("IssueDate") Is DBNull.Value, "", row("IssueDate").ToString())
+        txtExpiryDate.Text = If(row("ExpiryDate") Is DBNull.Value, "", row("ExpiryDate").ToString())
+        txtRemarks.Text = ""
+
+        ' In SuperAdmin mode, disable the renewal form fields and show notify button
+        txtDocNumber.Enabled = False
+        txtAuthority.Enabled = False
+        txtIssueDate.Enabled = False
+        txtExpiryDate.Enabled = False
+        txtRemarks.Enabled = False
+        fileScan.Visible = False
+        btnSubmitRenew.Visible = False
+        btnSendNotify.Visible = True
+
+        pnlRenewForm.Visible = True
+        pnlNoForm.Visible = False
+    End Sub
+
+
 
     Protected Sub btnCancelRenew_Click(ByVal sender As Object, ByVal e As EventArgs)
         pnlRenewForm.Visible = False
         pnlNoForm.Visible = True
     End Sub
 
+    Protected Sub btnSendNotify_Click(ByVal sender As Object, ByVal e As EventArgs)
+        ' Trigger the SendNotification command logic using the hidden record ID
+        Dim recordId As Integer = Convert.ToInt32(hdnRecordId.Value)
+        Dim empName As String = Session("EmployeeName").ToString()
+        Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
+
+        Try
+            Dim dtRec As DataTable = Database.ExecuteDataTable(
+                "SELECT r.LicenseType, r.ExpiryDate, v.VehicleNumber, v.Id As VehId, v.Department, e.EmployeeId As OwnerId, e.EmployeeName As OwnerName " &
+                "FROM ComplianceRecords r " &
+                "INNER JOIN Vehicles v ON r.VehicleId = v.Id " &
+                "INNER JOIN Employee e ON v.EmployeeId = e.EmployeeId " &
+                "WHERE r.Id = @Id LIMIT 1",
+                New SQLiteParameter("@Id", recordId))
+
+            If dtRec.Rows.Count > 0 Then
+                Dim row As DataRow = dtRec.Rows(0)
+                Dim docType As String = row("LicenseType").ToString()
+                Dim plate As String = row("VehicleNumber").ToString()
+                Dim dept As String = row("Department").ToString()
+                Dim vehId As Integer = Convert.ToInt32(row("VehId"))
+                Dim ownerId As Integer = Convert.ToInt32(row("OwnerId"))
+                Dim ownerName As String = row("OwnerName").ToString()
+                Dim expiry As String = row("ExpiryDate").ToString()
+
+                Dim notifTitle As String = "Renewal Required: " & docType.Replace("_", " ") & " for " & plate
+                Dim notifMsg As String = "SuperAdmin " & empName & " has notified you that the " & docType.Replace("_", " ") & " for vehicle " & plate & " (Expiry: " & expiry & ") needs urgent renewal."
+
+                Database.ExecuteNonQuery(
+                    "INSERT INTO Notifications (VehicleId, Department, Title, Message, Status, Type, CreatedAt) VALUES (@VehId, @Dept, @Title, @Msg, 'UNREAD', 'EXPIRY_REMINDER', datetime('now'));",
+                    New SQLiteParameter("@VehId", vehId),
+                    New SQLiteParameter("@Dept", dept),
+                    New SQLiteParameter("@Title", notifTitle),
+                    New SQLiteParameter("@Msg", notifMsg))
+
+                Try
+                    EmailService.NotifyEmployeeOfApproval(ownerId, plate)
+                Catch
+                End Try
+
+                Database.ExecuteNonQuery(
+                    "INSERT INTO AuditLogs (UserId, Username, Action, Description, IpAddress, Timestamp, VehicleId, Department) VALUES (" & empId & ", @User, 'EXPIRY_NOTIFICATION_SENT', 'SuperAdmin sent renewal notification for " & docType & " of vehicle " & plate & " to " & ownerName & ".', @IP, datetime('now'), " & vehId & ", @Dept);",
+                    New SQLiteParameter("@User", empName),
+                    New SQLiteParameter("@IP", Request.UserHostAddress),
+                    New SQLiteParameter("@Dept", dept))
+
+                pnlRenewForm.Visible = False
+                pnlNoForm.Visible = True
+                LoadAlerts()
+                ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Renewal notification sent to " & Server.HtmlEncode(ownerName) & " successfully.');", True)
+            End If
+        Catch ex As Exception
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Failed to send notification: " & Server.HtmlEncode(ex.Message) & "');", True)
+        End Try
+    End Sub
+
     Protected Sub btnSubmitRenew_Click(ByVal sender As Object, ByVal e As EventArgs)
+        ' SuperAdmin is NOT allowed to renew documents
+        If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('SuperAdmin cannot renew documents. Please notify the responsible employee to submit the renewal.');", True)
+            Return
+        End If
+
         Dim recordId As Integer = Convert.ToInt32(hdnRecordId.Value)
         Dim vehicleId As Integer = Convert.ToInt32(hdnVehicleId.Value)
         Dim docNumber As String = txtDocNumber.Text.Trim()
+
+
         Dim authority As String = txtAuthority.Text.Trim()
         Dim issueDate As String = txtIssueDate.Text
         Dim expiryDate As String = txtExpiryDate.Text
@@ -308,10 +473,10 @@ Public Class ExpiryPage
             Dim notifTitle As String = "Document Renewed: " & plateNo
             Dim notifMsg As String = "Employee " & empName & " renewed the " & docType.Replace("_", " ") & " for vehicle " & plateNo & " (Doc Number: " & docNumber & ")."
             
-            Dim deptId As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT DepartmentId FROM Vehicles WHERE Id = " & vehicleId))
+            Dim dept As String = Database.ExecuteScalar("SELECT Department FROM Vehicles WHERE Id = " & vehicleId).ToString()
 
-            Dim sqlNotif As String = "INSERT INTO Notifications (VehicleId, DepartmentId, Title, Message, Status, Type, CreatedAt) VALUES (" & vehicleId & ", " & deptId & ", @Title, @Msg, 'UNREAD', 'RENEWAL', datetime('now'));"
-            Database.ExecuteNonQuery(sqlNotif, New SQLiteParameter("@Title", notifTitle), New SQLiteParameter("@Msg", notifMsg))
+            Dim sqlNotif As String = "INSERT INTO Notifications (VehicleId, Department, Title, Message, Status, Type, CreatedAt) VALUES (" & vehicleId & ", @Dept, @Title, @Msg, 'UNREAD', 'RENEWAL', datetime('now'));"
+            Database.ExecuteNonQuery(sqlNotif, New SQLiteParameter("@Dept", dept), New SQLiteParameter("@Title", notifTitle), New SQLiteParameter("@Msg", notifMsg))
 
             EmailService.NotifySuperAdminsOfRenewal(empName, plateNo, docType)
 
@@ -319,8 +484,8 @@ Public Class ExpiryPage
             Compliance.UpdateVehicleStatus(vehicleId)
 
             ' Log Audit
-            Dim sqlAudit As String = "INSERT INTO AuditLogs (UserId, Username, Action, Description, OldValue, NewValue, IpAddress, Timestamp, VehicleId, DepartmentId) VALUES (" & empId & ", @User, 'DOCUMENT_RENEWAL', 'Uploaded and renewed certificate for " & docType & " of vehicle " & plateNo & ". Pending verification.', @OldExp, @NewExp, @IP, datetime('now'), " & vehicleId & ", " & deptId & ");"
-            Database.ExecuteNonQuery(sqlAudit, New SQLiteParameter("@User", empName), New SQLiteParameter("@OldExp", oldExpiry), New SQLiteParameter("@NewExp", expiryDate), New SQLiteParameter("@IP", Request.UserHostAddress))
+            Dim sqlAudit As String = "INSERT INTO AuditLogs (UserId, Username, Action, Description, OldValue, NewValue, IpAddress, Timestamp, VehicleId, Department) VALUES (" & empId & ", @User, 'DOCUMENT_RENEWAL', 'Uploaded and renewed certificate for " & docType & " of vehicle " & plateNo & ". Pending verification.', @OldExp, @NewExp, @IP, datetime('now'), " & vehicleId & ", @Dept);"
+            Database.ExecuteNonQuery(sqlAudit, New SQLiteParameter("@User", empName), New SQLiteParameter("@OldExp", oldExpiry), New SQLiteParameter("@NewExp", expiryDate), New SQLiteParameter("@IP", Request.UserHostAddress), New SQLiteParameter("@Dept", dept))
 
             pnlRenewForm.Visible = False
             pnlNoForm.Visible = True

@@ -11,9 +11,18 @@ Public Class UsersPage
     Inherits Page
 
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As EventArgs) Handles Me.Load
-        ' Restrict access strictly to SuperAdmin
-        If Session("Role") Is Nothing OrElse Session("Role").ToString() <> "SuperAdmin" Then
+        If Session("EmployeeId") Is Nothing Then
+            Response.Redirect("~/Login.aspx")
+            Return
+        End If
+        
+        Dim currentEmpId As Integer = Convert.ToInt32(Session("EmployeeId"))
+        Dim currentEmpNo As String = Database.ExecuteScalar("SELECT EmpNumber FROM Employee WHERE EmployeeId = @Id", New SQLiteParameter("@Id", currentEmpId)).ToString()
+        
+        ' Restrict access strictly to the primary SuperAdmin (10000001)
+        If currentEmpNo <> "10000001" Then
             Response.Redirect("~/Default.aspx")
+            Return
         End If
 
         If Not IsPostBack Then
@@ -53,7 +62,7 @@ Public Class UsersPage
 
     Private Sub PopulateDepartmentsDropdown()
         ddlEmpDept.Items.Clear()
-        Dim dt As DataTable = Database.ExecuteDataTable("SELECT DISTINCT Name FROM Departments ORDER BY Name")
+        Dim dt As DataTable = Database.ExecuteDataTable("SELECT DISTINCT Department AS Name FROM Employee WHERE Department IS NOT NULL AND Department != '' ORDER BY Department")
         For Each row As DataRow In dt.Rows
             ddlEmpDept.Items.Add(New ListItem(row("Name").ToString(), row("Name").ToString()))
         Next
@@ -175,10 +184,8 @@ Public Class UsersPage
                     Return
                 End If
 
-                If String.IsNullOrEmpty(password) Then
-                    ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Password is required for new accounts.');", True)
-                    Return
-                End If
+                ' Password is no longer required on creation, it defaults to the EmpNumber
+                Dim defaultPassword As String = If(String.IsNullOrEmpty(password), empNo, password)
 
                 ' Save Employee
                 Dim sqlInsertEmp As String = "INSERT INTO Employee (EmpNumber, EmployeeName, Department, Designation, EmailId) VALUES (@No, @Name, @Dept, @Desg, @Email);"
@@ -192,7 +199,7 @@ Public Class UsersPage
                 Dim newEmpId As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT EmployeeId FROM Employee WHERE EmpNumber=@No", New SQLiteParameter("@No", empNo)))
 
                 ' Hash password & create Authentication
-                Dim hash As String = BCrypt.Net.BCrypt.HashPassword(password)
+                Dim hash As String = BCrypt.Net.BCrypt.HashPassword(defaultPassword)
                 Dim sqlInsertAuth As String = "INSERT INTO Authentication (EmployeeId, EmployeeName, Role, Password) VALUES (" & newEmpId & ", @Name, @Role, @Pass);"
                 Database.ExecuteNonQuery(sqlInsertAuth,
                     New SQLiteParameter("@Name", name),
@@ -206,6 +213,13 @@ Public Class UsersPage
             Else
                 ' 2. Edit Employee
                 Dim empId As Integer = Convert.ToInt32(empIdStr)
+
+                ' Prevent changing role of primary SuperAdmin
+                Dim targetEmpNumber As String = Database.ExecuteScalar("SELECT EmpNumber FROM Employee WHERE EmployeeId = @Id", New SQLiteParameter("@Id", empId)).ToString()
+                If targetEmpNumber = "10000001" AndAlso role <> "SuperAdmin" Then
+                    ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('The primary SuperAdmin role cannot be changed.');", True)
+                    Return
+                End If
 
                 ' Update Employee details
                 Dim sqlUpdateEmp As String = "UPDATE Employee SET EmployeeName = @Name, Department = @Dept, Designation = @Desg, EmailId = @Email WHERE EmployeeId = @Id"
@@ -256,6 +270,13 @@ Public Class UsersPage
         End If
 
         Try
+            ' Prevent deletion of the primary SuperAdmin
+            Dim targetEmpNumber As String = Database.ExecuteScalar("SELECT EmpNumber FROM Employee WHERE EmployeeId = @Id", New SQLiteParameter("@Id", empId)).ToString()
+            If targetEmpNumber = "10000001" Then
+                ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('The primary SuperAdmin account cannot be deleted!');", True)
+                Return
+            End If
+
             ' Verify no vehicles are owned by this employee
             Dim count As Object = Database.ExecuteScalar("SELECT COUNT(*) FROM Vehicles WHERE EmployeeId = @Id", New SQLiteParameter("@Id", empId))
             If Convert.ToInt32(count) > 0 Then

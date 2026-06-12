@@ -15,6 +15,15 @@ Public Class Site
         
         If Not isPublic AndAlso Session("EmployeeId") Is Nothing Then
             Response.Redirect("~/Login.aspx")
+            Return
+        End If
+        
+        ' Enforce mandatory password change if using default password
+        If Not isPublic AndAlso Not localPath.Contains("changepassword.aspx") Then
+            If Session("MustChangePassword") IsNot Nothing AndAlso CBool(Session("MustChangePassword")) Then
+                Response.Redirect("~/ChangePassword.aspx")
+                Return
+            End If
         End If
     End Sub
 

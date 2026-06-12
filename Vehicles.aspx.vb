@@ -24,13 +24,13 @@ Public Class VehiclesPage
     End Sub
 
     Private Sub LoadFilterDepartments()
-        Dim dt As DataTable = Database.ExecuteDataTable("SELECT Id, Code, Name FROM Departments ORDER BY Code")
+        Dim dt As DataTable = Database.ExecuteDataTable("SELECT DISTINCT Department As Code FROM Employee WHERE Department IS NOT NULL AND Department <> '' ORDER BY Department")
         
         ' Filter Ddl
         ddlDeptFilter.Items.Clear()
         ddlDeptFilter.Items.Add(New ListItem("All Divisions", ""))
         For Each row As DataRow In dt.Rows
-            ddlDeptFilter.Items.Add(New ListItem(row("Code").ToString() & " - " & row("Name").ToString(), row("Id").ToString()))
+            ddlDeptFilter.Items.Add(New ListItem(row("Code").ToString(), row("Code").ToString()))
         Next
 
         ' Modal Ddl - departments removed, nothing to populate
@@ -41,9 +41,8 @@ Public Class VehiclesPage
         Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
 
         Dim sql As String = "SELECT v.Id, v.VehicleNumber, v.VehicleType, v.DriverName, v.VendorName, v.OverallStatus, " &
-                           "d.Code As DeptCode, d.Name As DeptName " &
-                           "FROM Vehicles v " &
-                           "INNER JOIN Departments d ON v.DepartmentId = d.Id"
+                           "v.Department As DeptCode, v.Department As DeptName " &
+                           "FROM Vehicles v"
         
         Dim whereClauses As New List(Of String)()
         Dim parameters As New List(Of SQLiteParameter)()
@@ -62,8 +61,8 @@ Public Class VehiclesPage
 
         ' Department filter
         If Not String.IsNullOrEmpty(ddlDeptFilter.SelectedValue) Then
-            whereClauses.Add("v.DepartmentId = @DeptId")
-            parameters.Add(New SQLiteParameter("@DeptId", Convert.ToInt32(ddlDeptFilter.SelectedValue)))
+            whereClauses.Add("v.Department = @Dept")
+            parameters.Add(New SQLiteParameter("@Dept", ddlDeptFilter.SelectedValue))
         End If
 
         ' Status filter
@@ -112,8 +111,7 @@ Public Class VehiclesPage
     End Sub
 
     Private Sub LoadVehicleDetails(ByVal vehicleId As Integer)
-        Dim sql As String = "SELECT v.*, d.Name As DeptName, e.EmployeeName As CreatorName FROM Vehicles v " &
-                           "INNER JOIN Departments d ON v.DepartmentId = d.Id " &
+        Dim sql As String = "SELECT v.*, v.Department As DeptName, e.EmployeeName As CreatorName FROM Vehicles v " &
                            "INNER JOIN Employee e ON v.EmployeeId = e.EmployeeId " &
                            "WHERE v.Id = @VehId LIMIT 1"
         
@@ -243,16 +241,16 @@ Public Class VehiclesPage
             Return
         End If
 
-        ' DeptId = 0 since departments have been removed
-        Dim deptId As Integer = 0
+        ' Fetch employee's department from session
+        Dim dept As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
 
         Try
-            Dim sqlInsert As String = "INSERT INTO Vehicles (VehicleNumber, VehicleType, DepartmentId, DriverName, VendorName, QrCodeUrl, OverallStatus, IsVerified, EmployeeId, CreatedAt, UpdatedAt) " &
-                                      "VALUES (@Plate, @Type, @DeptId, @Driver, @Vendor, '', 'PENDING', 0, @EmpId, datetime('now'), datetime('now'));"
+            Dim sqlInsert As String = "INSERT INTO Vehicles (VehicleNumber, VehicleType, Department, DriverName, VendorName, QrCodeUrl, OverallStatus, IsVerified, EmployeeId, CreatedAt, UpdatedAt) " &
+                                      "VALUES (@Plate, @Type, @Dept, @Driver, @Vendor, '', 'PENDING', 0, @EmpId, datetime('now'), datetime('now'));"
             Database.ExecuteNonQuery(sqlInsert,
                 New SQLiteParameter("@Plate", plate),
                 New SQLiteParameter("@Type", vehicleType),
-                New SQLiteParameter("@DeptId", deptId),
+                New SQLiteParameter("@Dept", dept),
                 New SQLiteParameter("@Driver", driver),
                 New SQLiteParameter("@Vendor", vendor),
                 New SQLiteParameter("@EmpId", empId)

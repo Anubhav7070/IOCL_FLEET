@@ -81,40 +81,10 @@ Public Class Compliance
             New SQLiteParameter("@Overall", overall),
             New SQLiteParameter("@VehId", vehicleId))
 
-        Dim deptIdObj As Object = Database.ExecuteScalar(
-            "SELECT DepartmentId FROM Vehicles WHERE Id = @VehId",
-            New SQLiteParameter("@VehId", vehicleId))
-        If deptIdObj IsNot Nothing AndAlso Not Convert.IsDBNull(deptIdObj) Then
-            UpdateDepartmentScore(Convert.ToInt32(deptIdObj))
-        End If
-
         Return overall
     End Function
 
-    ' ─────────────────────────────────────────────────────────────────────────
-    ' Recalculate compliance score for a department
-    ' ─────────────────────────────────────────────────────────────────────────
-    Public Shared Sub UpdateDepartmentScore(ByVal departmentId As Integer)
-        Dim dt As DataTable = Database.ExecuteDataTable(
-            "SELECT r.ExpiryDate FROM ComplianceRecords r INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE v.DepartmentId = @DeptId",
-            New SQLiteParameter("@DeptId", departmentId))
 
-        Dim totalLicenses As Integer = dt.Rows.Count
-        Dim compliantLicenses As Integer = 0
-
-        For Each row As DataRow In dt.Rows
-            Dim status As String = CalculateStatus(row("ExpiryDate").ToString())
-            If status = "ACTIVE" OrElse status = "WARNING" Then compliantLicenses += 1
-        Next
-
-        Dim score As Double = 100.0
-        If totalLicenses > 0 Then score = Math.Round((CDbl(compliantLicenses) / totalLicenses) * 100, 1)
-
-        Database.ExecuteNonQuery(
-            "UPDATE Departments SET ComplianceScore = @Score, UpdatedAt = datetime('now') WHERE Id = @DeptId",
-            New SQLiteParameter("@Score", score),
-            New SQLiteParameter("@DeptId", departmentId))
-    End Sub
 
     ' ─────────────────────────────────────────────────────────────────────────
     ' Full compliance scan — updates statuses, creates notifications, sends emails
@@ -127,10 +97,9 @@ Public Class Compliance
 
             Dim dt As DataTable = Database.ExecuteDataTable(
                 "SELECT r.Id, r.VehicleId, r.LicenseType, r.ExpiryDate, r.Status, " &
-                "v.VehicleNumber, v.VehicleType, v.DepartmentId, d.Name As DeptName " &
+                "v.VehicleNumber, v.VehicleType, v.Department As DeptName " &
                 "FROM ComplianceRecords r " &
-                "INNER JOIN Vehicles v ON r.VehicleId = v.Id " &
-                "INNER JOIN Departments d ON v.DepartmentId = d.Id")
+                "INNER JOIN Vehicles v ON r.VehicleId = v.Id")
 
             Dim alertCount As Integer = 0
 
@@ -158,7 +127,6 @@ Public Class Compliance
                         Dim diffDays As Integer = Convert.ToInt32(Math.Ceiling((expiry.Date - today).TotalDays))
                         Dim vehicleNumber As String = row("VehicleNumber").ToString()
                         Dim licenseType As String = row("LicenseType").ToString()
-                        Dim deptId As Integer = Convert.ToInt32(row("DepartmentId"))
                         Dim deptName As String = row("DeptName").ToString()
                         Dim vehType As String = row("VehicleType").ToString()
 
@@ -167,9 +135,9 @@ Public Class Compliance
 
                         ' Create notification record
                         Database.ExecuteNonQuery(
-                            "INSERT INTO Notifications (VehicleId, DepartmentId, Title, Message, Type, Status, CreatedAt) VALUES (@VehId, @DeptId, @Title, @Msg, @Type, 'UNREAD', datetime('now'))",
+                            "INSERT INTO Notifications (VehicleId, Department, Title, Message, Type, Status, CreatedAt) VALUES (@VehId, @Dept, @Title, @Msg, @Type, 'UNREAD', datetime('now'))",
                             New SQLiteParameter("@VehId", vehicleId),
-                            New SQLiteParameter("@DeptId", deptId),
+                            New SQLiteParameter("@Dept", deptName),
                             New SQLiteParameter("@Title", "Compliance Alert: " & licenseType),
                             New SQLiteParameter("@Msg", alertMsg),
                             New SQLiteParameter("@Type", notifType))
@@ -256,16 +224,26 @@ Public Class Compliance
             Next
 
             Dim deptsDt As DataTable = Database.ExecuteDataTable(
-                "SELECT d.Id, d.Name, COUNT(DISTINCT v.Id) As VehicleCount, d.ComplianceScore " &
-                "FROM Departments d LEFT JOIN Vehicles v ON v.DepartmentId = d.Id " &
-                "GROUP BY d.Id, d.Name, d.ComplianceScore ORDER BY d.ComplianceScore DESC")
+                "SELECT e.Department As Name, COUNT(DISTINCT v.Id) As VehicleCount, " &
+                "COALESCE(CAST(SUM(CASE WHEN r.Status = 'ACTIVE' OR r.Status = 'WARNING' THEN 1 ELSE 0 END) * 100.0 / COUNT(r.Id) AS REAL), 100.0) As ComplianceScore " &
+                "FROM Employee e " &
+                "LEFT JOIN Vehicles v ON e.EmployeeId = v.EmployeeId " &
+                "LEFT JOIN ComplianceRecords r ON v.Id = r.VehicleId " &
+                "WHERE e.Department IS NOT NULL AND e.Department <> '' " &
+                "GROUP BY e.Department " &
+                "ORDER BY ComplianceScore DESC")
+
+            ' Add dynamic Id column for template compatibility
+            deptsDt.Columns.Add("Id", GetType(String))
+            For Each r As DataRow In deptsDt.Rows
+                r("Id") = r("Name").ToString()
+            Next
 
             Dim expiringDt As DataTable = Database.ExecuteDataTable(
                 "SELECT r.Id, r.VehicleId, r.LicenseType, r.LicenseNumber, r.IssuingAuthority, r.ExpiryDate, r.Status, " &
-                "v.VehicleNumber, d.Name As DeptName " &
+                "v.VehicleNumber, v.Department As DeptName " &
                 "FROM ComplianceRecords r " &
                 "INNER JOIN Vehicles v ON r.VehicleId = v.Id " &
-                "INNER JOIN Departments d ON v.DepartmentId = d.Id " &
                 "WHERE r.Status IN ('EXPIRED', 'HIGH_CRITICAL', 'MEDIUM_CRITICAL', 'WARNING') " &
                 "ORDER BY r.ExpiryDate")
 
@@ -311,7 +289,7 @@ Public Class Compliance
                         userExpiringDt = filteredExpiring
 
                         Dim vCount As Object = Database.ExecuteScalar(
-                            "SELECT COUNT(*) FROM Vehicles v INNER JOIN Departments d ON v.DepartmentId = d.Id WHERE d.Name = @Dept",
+                            "SELECT COUNT(*) FROM Vehicles WHERE Department = @Dept",
                             New SQLiteParameter("@Dept", dept))
                         userTotal = If(vCount IsNot Nothing, Convert.ToInt32(vCount), 0)
                     End If

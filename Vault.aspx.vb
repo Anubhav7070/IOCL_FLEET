@@ -24,75 +24,68 @@ Public Class VaultPage
         Dim role As String = Session("Role").ToString()
         Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
 
-        Dim q1 As String = "SELECT d.Id, d.FileName, d.FilePath, d.FileType, d.FileSize, d.CreatedAt, e.EmployeeName, " &
-                          "'VEHICLE_RC' As LicenseType, v.VehicleNumber, dept.Code As DeptCode, v.IsVerified, v.VerifiedBy, v.Id As VehicleId " &
-                          "FROM Documents d " &
-                          "INNER JOIN Employee e ON d.UploadedBy = e.EmployeeId " &
-                          "INNER JOIN Vehicles v ON v.DocumentId = d.Id " &
-                          "INNER JOIN Departments dept ON v.DepartmentId = dept.Id"
+        ' Primary query: All compliance records joined with optional documents.
+        ' Shows ALL registered compliance slots, even if no PDF has been uploaded yet.
+        Dim sql As String =
+            "SELECT r.Id, " &
+            "COALESCE(d.FileName, 'No document uploaded') AS FileName, " &
+            "COALESCE(d.FilePath, '') AS FilePath, " &
+            "COALESCE(d.FileType, '') AS FileType, " &
+            "COALESCE(d.FileSize, 0) AS FileSize, " &
+            "COALESCE(d.CreatedAt, r.CreatedAt) AS CreatedAt, " &
+            "COALESCE(e.EmployeeName, reg.EmployeeName, 'Unknown') AS EmployeeName, " &
+            "r.LicenseType, v.VehicleNumber, v.Department AS DeptCode, " &
+            "r.IsVerified, r.VerifiedBy, v.Id AS VehicleId, r.Status, r.ExpiryDate " &
+            "FROM ComplianceRecords r " &
+            "INNER JOIN Vehicles v ON r.VehicleId = v.Id " &
+            "LEFT JOIN Documents d ON r.DocumentId = d.Id " &
+            "LEFT JOIN Employee e ON d.UploadedBy = e.EmployeeId " &
+            "LEFT JOIN Employee reg ON v.EmployeeId = reg.EmployeeId"
 
-        Dim q2 As String = "SELECT d.Id, d.FileName, d.FilePath, d.FileType, d.FileSize, d.CreatedAt, e.EmployeeName, " &
-                          "r.LicenseType, v.VehicleNumber, dept.Code As DeptCode, r.IsVerified, r.VerifiedBy, v.Id As VehicleId " &
-                          "FROM Documents d " &
-                          "INNER JOIN Employee e ON d.UploadedBy = e.EmployeeId " &
-                          "INNER JOIN ComplianceRecords r ON r.DocumentId = d.Id " &
-                          "INNER JOIN Vehicles v ON r.VehicleId = v.Id " &
-                          "INNER JOIN Departments dept ON v.DepartmentId = dept.Id"
-
-        Dim where1 As New List(Of String)()
-        Dim where2 As New List(Of String)()
+        Dim whereClauses As New List(Of String)()
         Dim parameters As New List(Of SQLiteParameter)()
 
-        ' Scoping
+        ' Scoping: Employees see only their own vehicles
         If role = "Employee" Then
-            where1.Add("d.UploadedBy = @EmpId")
-            where2.Add("d.UploadedBy = @EmpId")
+            whereClauses.Add("v.EmployeeId = @EmpId")
             parameters.Add(New SQLiteParameter("@EmpId", empId))
+        End If
+
+        ' Type filter
+        Dim typeFilter As String = ddlFilterType.SelectedValue
+        If typeFilter = "VEHICLE_RC" Then
+            whereClauses.Add("r.LicenseType = 'VEHICLE_RC'")
+        ElseIf typeFilter = "COMPLIANCE" Then
+            whereClauses.Add("r.LicenseType <> 'VEHICLE_RC'")
         End If
 
         ' Search
         Dim search As String = txtSearch.Text.Trim()
         If Not String.IsNullOrEmpty(search) Then
-            Dim searchClause As String = "(v.VehicleNumber LIKE @Search OR d.FileName LIKE @Search OR dept.Code LIKE @Search)"
-            where1.Add(searchClause)
-            where2.Add(searchClause)
+            whereClauses.Add("(v.VehicleNumber LIKE @Search OR r.LicenseType LIKE @Search OR v.Department LIKE @Search OR COALESCE(d.FileName,'') LIKE @Search)")
             parameters.Add(New SQLiteParameter("@Search", "%" & search & "%"))
         End If
 
-        ' Verified
+        ' Verified filter
         Dim verifiedFilter As String = ddlFilterVerified.SelectedValue
         If Not String.IsNullOrEmpty(verifiedFilter) Then
             Dim vVal As Integer = Convert.ToInt32(verifiedFilter)
-            where1.Add("v.IsVerified = " & vVal)
-            where2.Add("r.IsVerified = " & vVal)
+            whereClauses.Add("r.IsVerified = " & vVal)
         End If
 
-        ' Apply wheres to queries
-        If where1.Count > 0 Then
-            q1 &= " WHERE " & String.Join(" AND ", where1.ToArray())
-        End If
-        If where2.Count > 0 Then
-            q2 &= " WHERE " & String.Join(" AND ", where2.ToArray())
+        If whereClauses.Count > 0 Then
+            sql &= " WHERE " & String.Join(" AND ", whereClauses.ToArray())
         End If
 
-        ' Combine
-        Dim finalSql As String = ""
-        Dim typeFilter As String = ddlFilterType.SelectedValue
-        If typeFilter = "VEHICLE_RC" Then
-            finalSql = q1 & " ORDER BY d.Id DESC"
-        ElseIf typeFilter = "COMPLIANCE" Then
-            finalSql = q2 & " ORDER BY d.Id DESC"
-        Else
-            finalSql = q1 & " UNION ALL " & q2 & " ORDER BY Id DESC"
-        End If
+        sql &= " ORDER BY v.VehicleNumber, r.LicenseType"
 
-        Dim dt As DataTable = Database.ExecuteDataTable(finalSql, parameters.ToArray())
-        
+        Dim dt As DataTable = Database.ExecuteDataTable(sql, parameters.ToArray())
+
         ' Bind repeater
         rptVault.DataSource = dt
         rptVault.DataBind()
 
-        ' Calculate stats dynamically
+        ' Calculate stats
         Dim totalDocs As Integer = dt.Rows.Count
         Dim rcCopies As Integer = 0
         Dim compDocs As Integer = 0
@@ -136,41 +129,61 @@ Public Class VaultPage
     Protected Sub rptVault_ItemCommand(ByVal source As Object, ByVal e As RepeaterCommandEventArgs)
         If e.CommandName = "ToggleVerify" Then
             Dim args As String() = e.CommandArgument.ToString().Split("|"c)
-            Dim id As Integer = Convert.ToInt32(args(0))
+            Dim recordId As Integer = Convert.ToInt32(args(0))   ' ComplianceRecord Id
             Dim currentVerified As Integer = Convert.ToInt32(args(1))
-            Dim type As String = args(2)
+            Dim licType As String = args(2)
             Dim vehicleId As Integer = Convert.ToInt32(args(3))
-            
+
             Dim newVerified As Integer = If(currentVerified = 1, 0, 1)
             Dim verifier As String = Session("EmployeeName").ToString()
             Dim userId As Integer = Convert.ToInt32(Session("EmployeeId"))
 
             Try
-                If type = "VEHICLE_RC" Then
-                    Database.ExecuteNonQuery("UPDATE Vehicles SET IsVerified = " & newVerified & ", VerifiedBy = @Verifier, UpdatedAt = datetime('now') WHERE Id = " & vehicleId, New SQLiteParameter("@Verifier", verifier))
-                    Compliance.UpdateVehicleStatus(vehicleId)
-                    
-                    Dim act As String = If(newVerified = 1, "VEHICLE_VERIFY", "VEHICLE_VERIFY_REVOKE")
-                    Dim desc As String = "Vehicle RC copy verification " & If(newVerified = 1, "approved", "revoked") & " by SuperAdmin."
-                    Database.ExecuteNonQuery("INSERT INTO AuditLogs (UserId, Username, Action, Description, IpAddress, Timestamp, VehicleId) VALUES (" & userId & ", @User, @Action, @Desc, @IP, datetime('now'), " & vehicleId & ");", New SQLiteParameter("@User", verifier), New SQLiteParameter("@Action", act), New SQLiteParameter("@Desc", desc), New SQLiteParameter("@IP", Request.UserHostAddress))
-                    
-                    ' Email creator
-                    Dim creatorIdObj As Object = Database.ExecuteScalar("SELECT EmployeeId FROM Vehicles WHERE Id = " & vehicleId)
-                    If creatorIdObj IsNot Nothing Then
+                ' Update compliance record verification
+                Database.ExecuteNonQuery(
+                    "UPDATE ComplianceRecords SET IsVerified = " & newVerified & ", VerifiedBy = @Verifier, UpdatedAt = datetime('now') WHERE Id = " & recordId,
+                    New SQLiteParameter("@Verifier", verifier))
+
+                ' Also update vehicle-level verification flag
+                If licType = "VEHICLE_RC" Then
+                    Database.ExecuteNonQuery(
+                        "UPDATE Vehicles SET IsVerified = " & newVerified & ", VerifiedBy = @Verifier, UpdatedAt = datetime('now') WHERE Id = " & vehicleId,
+                        New SQLiteParameter("@Verifier", verifier))
+                End If
+
+                Compliance.UpdateVehicleStatus(vehicleId)
+
+                Dim act As String = If(newVerified = 1, "DOCUMENT_VERIFY", "DOCUMENT_VERIFY_REVOKE")
+                Dim desc As String = "Compliance document " & licType.Replace("_", " ") & " " & If(newVerified = 1, "verified", "revoked") & " by SuperAdmin."
+                Dim dept As String = ""
+                Try
+                    dept = Database.ExecuteScalar("SELECT Department FROM Vehicles WHERE Id = " & vehicleId).ToString()
+                Catch
+                End Try
+
+                Database.ExecuteNonQuery(
+                    "INSERT INTO AuditLogs (UserId, Username, Action, Description, IpAddress, Timestamp, VehicleId, Department) " &
+                    "VALUES (" & userId & ", @User, @Action, @Desc, @IP, datetime('now'), " & vehicleId & ", @Dept);",
+                    New SQLiteParameter("@User", verifier),
+                    New SQLiteParameter("@Action", act),
+                    New SQLiteParameter("@Desc", desc),
+                    New SQLiteParameter("@IP", Request.UserHostAddress),
+                    New SQLiteParameter("@Dept", dept))
+
+                ' Notify vehicle owner on approval
+                If newVerified = 1 Then
+                    Try
+                        Dim creatorIdObj As Object = Database.ExecuteScalar("SELECT EmployeeId FROM Vehicles WHERE Id = " & vehicleId)
                         Dim plate As String = Database.ExecuteScalar("SELECT VehicleNumber FROM Vehicles WHERE Id = " & vehicleId).ToString()
-                        EmailService.NotifyEmployeeOfApproval(Convert.ToInt32(creatorIdObj), plate)
-                    End If
-                Else
-                    Database.ExecuteNonQuery("UPDATE ComplianceRecords SET IsVerified = " & newVerified & ", VerifiedBy = @Verifier, UpdatedAt = datetime('now') WHERE VehicleId = " & vehicleId & " AND LicenseType = @Type", New SQLiteParameter("@Verifier", verifier), New SQLiteParameter("@Type", type))
-                    Compliance.UpdateVehicleStatus(vehicleId)
-                    
-                    Dim act As String = If(newVerified = 1, "DOCUMENT_VERIFY", "DOCUMENT_VERIFY_REVOKE")
-                    Dim desc As String = "Compliance document " & type.Replace("_", " ") & " " & If(newVerified = 1, "approved", "revoked") & " by SuperAdmin."
-                    Database.ExecuteNonQuery("INSERT INTO AuditLogs (UserId, Username, Action, Description, IpAddress, Timestamp, VehicleId) VALUES (" & userId & ", @User, @Action, @Desc, @IP, datetime('now'), " & vehicleId & ");", New SQLiteParameter("@User", verifier), New SQLiteParameter("@Action", act), New SQLiteParameter("@Desc", desc), New SQLiteParameter("@IP", Request.UserHostAddress))
+                        If creatorIdObj IsNot Nothing Then
+                            EmailService.NotifyEmployeeOfApproval(Convert.ToInt32(creatorIdObj), plate)
+                        End If
+                    Catch
+                    End Try
                 End If
 
                 LoadDocuments()
-                ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Verification pass updated successfully!');", True)
+                ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Verification status updated successfully!');", True)
 
             Catch ex As Exception
                 ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Verification update failed: " & Server.HtmlEncode(ex.Message) & "');", True)
@@ -178,7 +191,8 @@ Public Class VaultPage
         End If
     End Sub
 
-    ' Helpers
+    ' ── Helpers ──
+
     Public Function FmtDate(ByVal dateObj As Object) As String
         If dateObj Is Nothing OrElse Convert.IsDBNull(dateObj) OrElse String.IsNullOrEmpty(dateObj.ToString()) Then
             Return "-"
@@ -189,4 +203,25 @@ Public Class VaultPage
         End If
         Return dateObj.ToString()
     End Function
+
+    Public Function HasDocument(ByVal filePath As Object) As Boolean
+        Return filePath IsNot Nothing AndAlso Not Convert.IsDBNull(filePath) AndAlso Not String.IsNullOrEmpty(filePath.ToString())
+    End Function
+
+    Public Function GetStatusBadgeClass(ByVal statusObj As Object) As String
+        If statusObj Is Nothing OrElse Convert.IsDBNull(statusObj) Then Return "bg-slate-100 text-slate-500"
+        Select Case statusObj.ToString()
+            Case "ACTIVE", "FULLY_COMPLIANT"
+                Return "bg-emerald-100 text-emerald-700"
+            Case "WARNING"
+                Return "bg-yellow-100 text-yellow-700"
+            Case "CRITICAL", "HIGH_CRITICAL", "MEDIUM_CRITICAL"
+                Return "bg-orange-100 text-orange-700"
+            Case "EXPIRED"
+                Return "bg-red-100 text-red-700"
+            Case Else
+                Return "bg-slate-100 text-slate-500"
+        End Select
+    End Function
+
 End Class

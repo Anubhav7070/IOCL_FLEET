@@ -3,8 +3,6 @@
 <asp:Content ID="Content1" ContentPlaceHolderID="head" runat="server">
 </asp:Content>
 
-<asp:Content ID="Content2" ContentPlaceHolderID="PageHeaderTitle" runat="server">
-</asp:Content>
 
 <asp:Content ID="Content3" ContentPlaceHolderID="MainContent" runat="server">
     <div class="space-y-6">
@@ -80,9 +78,15 @@
                                 </td>
                                 <td class="py-3 px-2 font-medium text-slate-600"><%# GetDaysRemainingText(Eval("ExpiryDate")) %></td>
                                 <td class="py-3 px-2 text-right">
-                                    <asp:LinkButton ID="btnProcess" runat="server" CommandName="SelectAlert" CommandArgument='<%# Eval("Id") %>' CssClass="rounded bg-blue-50 hover:bg-blue-100 text-[#0054A6] px-2.5 py-1.5 font-bold transition-all focus:outline-none">
-                                        Renew
-                                    </asp:LinkButton>
+                                    <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then %>
+                                        <asp:LinkButton ID="btnProcess" runat="server" CommandName="SelectAlert" CommandArgument='<%# Eval("Id") %>' CssClass="rounded bg-orange-50 hover:bg-orange-100 text-orange-600 px-2.5 py-1.5 font-bold transition-all focus:outline-none border border-orange-200">
+                                            Notify Employee
+                                        </asp:LinkButton>
+                                    <% Else %>
+                                        <asp:LinkButton ID="btnProcess2" runat="server" CommandName="SelectAlert" CommandArgument='<%# Eval("Id") %>' CssClass="rounded bg-blue-50 hover:bg-blue-100 text-[#0054A6] px-2.5 py-1.5 font-bold transition-all focus:outline-none">
+                                            Renew
+                                        </asp:LinkButton>
+                                    <% End If %>
                                 </td>
                             </tr>
                         </ItemTemplate>
@@ -155,6 +159,7 @@
                     <div class="flex gap-3 pt-3 border-t border-slate-100">
                         <asp:Button ID="btnCancelRenew" runat="server" CssClass="flex-1 rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 py-2.5 text-xs font-bold cursor-pointer focus:outline-none" Text="Cancel" OnClick="btnCancelRenew_Click" />
                         <asp:Button ID="btnSubmitRenew" runat="server" CssClass="flex-1 rounded bg-[#0054A6] hover:bg-blue-700 text-white py-2.5 text-xs font-bold cursor-pointer focus:outline-none" Text="Submit Renewal" OnClick="btnSubmitRenew_Click" />
+                        <asp:Button ID="btnSendNotify" runat="server" Visible="false" CssClass="flex-1 rounded bg-orange-500 hover:bg-orange-600 text-white py-2.5 text-xs font-bold cursor-pointer focus:outline-none" Text="Send Notification" OnClick="btnSendNotify_Click" />
                     </div>
                 </asp:Panel>
 

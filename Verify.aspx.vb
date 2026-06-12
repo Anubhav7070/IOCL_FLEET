@@ -45,7 +45,7 @@ Public Class VerifyPage
 
     Private Sub ProcessVerificationByPlate(ByVal plate As String)
         Try
-            Dim sql As String = "SELECT v.*, d.Name As DeptName FROM Vehicles v INNER JOIN Departments d ON v.DepartmentId = d.Id WHERE v.VehicleNumber = @Plate LIMIT 1"
+            Dim sql As String = "SELECT v.*, v.Department As DeptName FROM Vehicles v WHERE v.VehicleNumber = @Plate LIMIT 1"
             Dim dt As DataTable = Database.ExecuteDataTable(sql, New SQLiteParameter("@Plate", plate))
             
             If dt.Rows.Count = 0 Then
