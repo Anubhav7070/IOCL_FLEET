@@ -301,6 +301,8 @@
         <% End If %>
     </div>
 
+    <div id="chartDataContainer" data-charts='<%= ChartDataJson %>' style="display: none;"></div>
+
     <!-- Chart Configuration Script -->
     <script>
         window.charts = {
@@ -386,7 +388,15 @@
         };
 
         document.addEventListener("DOMContentLoaded", function () {
-            var chartData = <%= ChartDataJson %>;
+            var dataContainer = document.getElementById("chartDataContainer");
+            var chartData = null;
+            if (dataContainer) {
+                try {
+                    chartData = JSON.parse(dataContainer.getAttribute("data-charts"));
+                } catch (e) {
+                    console.error("Error parsing chart data: ", e);
+                }
+            }
             if (chartData && chartData.StatusData) {
                 window.charts.createDoughnut("statusChart", chartData.StatusData, ["Compliant", "Warning", "Critical", "Expired"]);
             }
