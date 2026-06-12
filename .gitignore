@@ -1,0 +1,32 @@
+# Build output
+precompiled/
+bin/roslyn/
+
+# NuGet packages (large - restore with nuget.exe)
+packages/
+
+# SQLite DB (contains runtime data - exclude from repo)
+App_Data/*.db
+App_Data/*.db-shm
+App_Data/*.db-wal
+
+# Uploaded PDFs (runtime data)
+App_Data/Uploads/
+uploads/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.cache
+*.bak
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+
+# nuget binary (large)
+nuget.exe
