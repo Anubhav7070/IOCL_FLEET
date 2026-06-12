@@ -16,11 +16,12 @@ Public Class Seeder
 
         ' 1. Seed Employees
         Dim passwordHash As String = BCrypt.Net.BCrypt.HashPassword("password123")
+        Dim adminPasswordHash As String = BCrypt.Net.BCrypt.HashPassword("10000001")
 
         ' Insert SuperAdmin Employee
         Database.ExecuteNonQuery("INSERT INTO Employee (EmpNumber, EmployeeName, Department, Designation, EmailId) VALUES ('10000001', 'Super Admin', '', 'Superintendent', 'singhanubhav1562@gmail.com');")
         Dim superAdminEmpId As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT EmployeeId FROM Employee WHERE EmpNumber='10000001'"))
-        Database.ExecuteNonQuery("INSERT INTO Authentication (EmployeeId, EmployeeName, Role, Password) VALUES (" & superAdminEmpId & ", 'Super Admin', 'SuperAdmin', '" & passwordHash & "');")
+        Database.ExecuteNonQuery("INSERT INTO Authentication (EmployeeId, EmployeeName, Role, Password) VALUES (" & superAdminEmpId & ", 'Super Admin', 'SuperAdmin', '" & adminPasswordHash & "');")
 
         ' Insert Employee (Logistics Manager)
         Database.ExecuteNonQuery("INSERT INTO Employee (EmpNumber, EmployeeName, Department, Designation, EmailId) VALUES ('20000001', 'Logistics Manager', 'PR - Refinery Operations', 'Manager', 'anubhav.singh0020vit@gmail.com');")

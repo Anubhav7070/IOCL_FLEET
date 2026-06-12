@@ -8,14 +8,6 @@ Public Class Login
 
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As EventArgs) Handles Me.Load
         If Not IsPostBack Then
-            Try
-                ' Auto-patch SuperAdmin credentials and department to match new logic
-                Dim hash As String = BCrypt.Net.BCrypt.HashPassword("10000001")
-                Database.ExecuteNonQuery("UPDATE Employee SET Department = '' WHERE EmpNumber = '10000001'")
-                Database.ExecuteNonQuery("UPDATE Authentication SET Password = @Pass WHERE EmployeeId IN (SELECT EmployeeId FROM Employee WHERE EmpNumber = '10000001')", New SQLiteParameter("@Pass", hash))
-            Catch
-            End Try
-
             If Session("EmployeeId") IsNot Nothing Then
                 Response.Redirect("~/Default.aspx")
             End If
