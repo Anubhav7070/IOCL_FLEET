@@ -96,7 +96,7 @@ Public Class Compliance
             Dim today As DateTime = DateTime.Today
 
             Dim dt As DataTable = Database.ExecuteDataTable(
-                "SELECT r.Id, r.VehicleId, r.LicenseType, r.ExpiryDate, r.Status, " &
+                "SELECT r.Id, r.VehicleId, r.LicenseType, r.ExpiryDate, r.Status, r.LastAlertSent, " &
                 "v.VehicleNumber, v.VehicleType, v.Department As DeptName " &
                 "FROM ComplianceRecords r " &
                 "INNER JOIN Vehicles v ON r.VehicleId = v.Id")
@@ -109,21 +109,35 @@ Public Class Compliance
 
                 Dim currentStatus As String = row("Status").ToString()
                 Dim computedStatus As String = CalculateStatus(expiryDate)
+                Dim recordId As Integer = Convert.ToInt32(row("Id"))
+                Dim vehicleId As Integer = Convert.ToInt32(row("VehicleId"))
 
+                Dim statusChanged As Boolean = False
                 If currentStatus <> computedStatus Then
-                    Dim recordId As Integer = Convert.ToInt32(row("Id"))
-                    Dim vehicleId As Integer = Convert.ToInt32(row("VehicleId"))
-
                     Database.ExecuteNonQuery(
                         "UPDATE ComplianceRecords SET Status = @Status, LastUpdatedTimestamp = datetime('now'), UpdatedAt = datetime('now') WHERE Id = @Id",
                         New SQLiteParameter("@Status", computedStatus),
                         New SQLiteParameter("@Id", recordId))
 
                     UpdateVehicleStatus(vehicleId)
+                    statusChanged = True
+                End If
 
-                    If computedStatus <> "ACTIVE" Then
+                If computedStatus <> "ACTIVE" Then
+                    Dim lastAlertSent As String = If(row("LastAlertSent") Is DBNull.Value, "", row("LastAlertSent").ToString())
+                    Dim todayStr As String = today.ToString("yyyy-MM-dd")
+
+                    Dim shouldSendEmail As Boolean = False
+                    If statusChanged OrElse String.IsNullOrEmpty(lastAlertSent) OrElse lastAlertSent <> todayStr Then
+                        shouldSendEmail = True
+                    End If
+
+                    If shouldSendEmail Then
                         alertCount += 1
-                        Dim expiry As DateTime = DateTime.Parse(expiryDate)
+                        Dim expiry As DateTime
+                        If Not DateTime.TryParse(expiryDate, expiry) Then
+                            expiry = DateTime.Today
+                        End If
                         Dim diffDays As Integer = Convert.ToInt32(Math.Ceiling((expiry.Date - today).TotalDays))
                         Dim vehicleNumber As String = row("VehicleNumber").ToString()
                         Dim licenseType As String = row("LicenseType").ToString()
@@ -145,6 +159,7 @@ Public Class Compliance
                         ' Send email alerts ONLY to:
                         '   1. The employee who registered/added this vehicle
                         '   2. All SuperAdmin accounts
+                        Dim emailDispatched As Boolean = False
                         Try
                             Dim sentEmails As New List(Of String)()
 
@@ -163,6 +178,7 @@ Public Class Compliance
                                     Try
                                         EmailService.SendComplianceAlert(email, name, vehicleNumber, vehType, deptName,
                                             licenseType, expiryDate, diffDays, computedStatus)
+                                        emailDispatched = True
                                     Catch emailEx As Exception
                                         Console.WriteLine("[ComplianceCheck] Failed to email owner " & email & ": " & emailEx.Message)
                                     End Try
@@ -183,6 +199,7 @@ Public Class Compliance
                                     Try
                                         EmailService.SendComplianceAlert(email, name, vehicleNumber, vehType, deptName,
                                             licenseType, expiryDate, diffDays, computedStatus)
+                                        emailDispatched = True
                                     Catch emailEx As Exception
                                         Console.WriteLine("[ComplianceCheck] Failed to email SuperAdmin " & email & ": " & emailEx.Message)
                                     End Try
@@ -192,6 +209,14 @@ Public Class Compliance
                         Catch userEx As Exception
                             Console.WriteLine("[ComplianceCheck] Failed to query recipients for alert emails: " & userEx.Message)
                         End Try
+
+                        ' If we attempted or sent emails, update the LastAlertSent column so we don't duplicate today
+                        If emailDispatched Then
+                            Database.ExecuteNonQuery(
+                                "UPDATE ComplianceRecords SET LastAlertSent = @LastAlert, UpdatedAt = datetime('now') WHERE Id = @Id",
+                                New SQLiteParameter("@LastAlert", todayStr),
+                                New SQLiteParameter("@Id", recordId))
+                        End If
                     End If
                 End If
             Next

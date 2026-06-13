@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Web
 Imports System.Web.UI
 Imports System.Data.SQLite
@@ -14,14 +14,16 @@ Public Class Site
                                   localPath.Contains("verify.aspx")
         
         If Not isPublic AndAlso Session("EmployeeId") Is Nothing Then
-            Response.Redirect("~/Login.aspx")
+            Response.Redirect("~/Login.aspx", False)
+            HttpContext.Current.ApplicationInstance.CompleteRequest()
             Return
         End If
         
         ' Enforce mandatory password change if using default password
         If Not isPublic AndAlso Not localPath.Contains("changepassword.aspx") Then
             If Session("MustChangePassword") IsNot Nothing AndAlso CBool(Session("MustChangePassword")) Then
-                Response.Redirect("~/ChangePassword.aspx")
+                Response.Redirect("~/ChangePassword.aspx", False)
+                HttpContext.Current.ApplicationInstance.CompleteRequest()
                 Return
             End If
         End If
@@ -63,7 +65,8 @@ Public Class Site
 
         Session.Clear()
         Session.Abandon()
-        Response.Redirect("~/Login.aspx")
+        Response.Redirect("~/Login.aspx", False)
+        HttpContext.Current.ApplicationInstance.CompleteRequest()
     End Sub
 
     Public Function GetActiveCSS(ByVal pageName As String) As String

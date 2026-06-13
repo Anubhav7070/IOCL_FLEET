@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Data
 Imports System.Data.SQLite
 Imports System.Web
@@ -12,12 +12,14 @@ Public Class AuditPage
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As EventArgs) Handles Me.Load
         ' Restrict access strictly to SuperAdmin and DEPT_ADMIN
         If Session("Role") Is Nothing Then
-            Response.Redirect("~/Login.aspx")
+            Response.Redirect("~/Login.aspx", False)
+            HttpContext.Current.ApplicationInstance.CompleteRequest()
         End If
 
         Dim role As String = Session("Role").ToString()
         If role <> "SuperAdmin" AndAlso role <> "DEPT_ADMIN" Then
-            Response.Redirect("~/Default.aspx")
+            Response.Redirect("~/Default.aspx", False)
+            HttpContext.Current.ApplicationInstance.CompleteRequest()
         End If
 
         If Not IsPostBack Then

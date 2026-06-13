@@ -12,7 +12,8 @@ Public Class ExpiryPage
 
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As EventArgs) Handles Me.Load
         If Session("EmployeeId") Is Nothing Then
-            Response.Redirect("~/Login.aspx")
+            Response.Redirect("~/Login.aspx", False)
+            HttpContext.Current.ApplicationInstance.CompleteRequest()
             Return
         End If
 
@@ -109,7 +110,7 @@ Public Class ExpiryPage
 
         If e.CommandName = "SelectAlert" Then
             Dim recordId As Integer = Convert.ToInt32(e.CommandArgument)
-            ' SuperAdmin cannot renew — show notification panel instead
+            ' SuperAdmin cannot renew â€” show notification panel instead
             If role = "SuperAdmin" Then
                 LoadNotifyPanel(recordId)
             Else
@@ -154,7 +155,12 @@ Public Class ExpiryPage
 
                     ' Try email notification
                     Try
-                        EmailService.NotifyEmployeeOfApproval(ownerId, plate)
+                        Dim parsedExpiry As DateTime
+                        Dim daysRemaining As Integer = 0
+                        If DateTime.TryParse(expiry, parsedExpiry) Then
+                            daysRemaining = (parsedExpiry.Date - DateTime.Today).Days
+                        End If
+                        EmailService.NotifyEmployeeOfDocumentExpiry(ownerId, plate, docType, expiry, daysRemaining)
                     Catch
                     End Try
 
@@ -312,7 +318,12 @@ Public Class ExpiryPage
                     New SQLiteParameter("@Msg", notifMsg))
 
                 Try
-                    EmailService.NotifyEmployeeOfApproval(ownerId, plate)
+                    Dim parsedExpiry As DateTime
+                    Dim daysRemaining As Integer = 0
+                    If DateTime.TryParse(expiry, parsedExpiry) Then
+                        daysRemaining = (parsedExpiry.Date - DateTime.Today).Days
+                    End If
+                    EmailService.NotifyEmployeeOfDocumentExpiry(ownerId, plate, docType, expiry, daysRemaining)
                 Catch
                 End Try
 

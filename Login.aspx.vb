@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Data
 Imports System.Data.SQLite
 Imports BCrypt.Net
@@ -9,7 +9,8 @@ Public Class Login
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As EventArgs) Handles Me.Load
         If Not IsPostBack Then
             If Session("EmployeeId") IsNot Nothing Then
-                Response.Redirect("~/Default.aspx")
+                Response.Redirect("~/Default.aspx", False)
+                HttpContext.Current.ApplicationInstance.CompleteRequest()
             End If
         End If
     End Sub
@@ -76,9 +77,11 @@ Public Class Login
 
             ' Redirect GATEMAN to Gate Entry, others to Dashboard
             If Session("Role").ToString() = "GATEMAN" Then
-                Response.Redirect("~/Gate.aspx")
+                Response.Redirect("~/Gate.aspx", False)
+                HttpContext.Current.ApplicationInstance.CompleteRequest()
             Else
-                Response.Redirect("~/Default.aspx")
+                Response.Redirect("~/Default.aspx", False)
+                HttpContext.Current.ApplicationInstance.CompleteRequest()
             End If
 
         Catch ex As Exception

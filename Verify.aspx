@@ -49,9 +49,6 @@
             <!-- Saffron/Blue Header -->
             <div class="w-full flex items-center justify-between border-b border-slate-800 bg-slate-900 p-4 rounded-t-xl">
                 <div class="flex items-center gap-3">
-                    <div class="bg-white rounded-lg p-1">
-                        <img src="/iocl-logo.gif" alt="IOCL Logo" class="h-10 w-auto" style="object-fit: contain; mix-blend-mode: multiply;" />
-                    </div>
                     <div>
                         <h1 class="text-xs font-bold text-white uppercase tracking-wider">IndianOil Corporation</h1>
                         <p class="text-[9px] text-orange-500 font-bold uppercase tracking-widest">Panipat Refinery Gate-3</p>
@@ -89,16 +86,28 @@
                         <span class="font-semibold text-slate-300"><asp:Label ID="lblCategory" runat="server"></asp:Label></span>
                     </div>
                     <div class="flex justify-between border-b border-slate-800 py-1.5">
+                        <span class="text-slate-500 font-bold uppercase tracking-wider text-[9px]">Ownership Type</span>
+                        <span class="font-semibold text-[#F47920] font-bold"><asp:Label ID="lblOwnership" runat="server"></asp:Label></span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-800 py-1.5">
                         <span class="text-slate-500 font-bold uppercase tracking-wider text-[9px]">Department</span>
                         <span class="font-semibold text-slate-300"><asp:Label ID="lblDept" runat="server"></asp:Label></span>
                     </div>
-                    <div class="flex justify-between border-b border-slate-800 py-1.5">
+                    <div id="rowDriver" runat="server" class="flex justify-between border-b border-slate-800 py-1.5">
                         <span class="text-slate-500 font-bold uppercase tracking-wider text-[9px]">Driver Name</span>
                         <span class="font-semibold text-slate-300"><asp:Label ID="lblDriver" runat="server"></asp:Label></span>
                     </div>
-                    <div class="flex justify-between pt-1.5">
+                    <div id="rowVendor" runat="server" class="flex justify-between pt-1.5">
                         <span class="text-slate-500 font-bold uppercase tracking-wider text-[9px]">Vendor / Contractor</span>
                         <span class="font-semibold text-slate-300"><asp:Label ID="lblVendor" runat="server"></asp:Label></span>
+                    </div>
+                    <div id="rowEmpNumber" runat="server" class="flex justify-between border-b border-slate-800 py-1.5">
+                        <span class="text-slate-500 font-bold uppercase tracking-wider text-[9px]">Employee Number</span>
+                        <span class="font-semibold text-slate-300"><asp:Label ID="lblEmpNumber" runat="server"></asp:Label></span>
+                    </div>
+                    <div id="rowEmpName" runat="server" class="flex justify-between pt-1.5">
+                        <span class="text-slate-500 font-bold uppercase tracking-wider text-[9px]">Employee Name</span>
+                        <span class="font-semibold text-slate-300"><asp:Label ID="lblEmpName" runat="server"></asp:Label></span>
                     </div>
                 </div>
 

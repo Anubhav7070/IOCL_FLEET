@@ -5,6 +5,9 @@
         ' Initialize database schema & seed data
         Try
             Database.InitializeDatabase()
+            Database.EnsureOtpTokensTable()   ' Migrate existing DBs to add OtpTokens table
+            Database.EnsureOwnershipTypeColumn()
+            Database.EnsureLastAlertSentColumn()
             Seeder.Seed()
         Catch ex As Exception
             System.Diagnostics.Debug.WriteLine("[STARTUP] DB init error: " & ex.Message)

@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Data
 Imports System.Data.SQLite
 Imports System.Web
@@ -11,7 +11,8 @@ Public Class VaultPage
 
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As EventArgs) Handles Me.Load
         If Session("EmployeeId") Is Nothing Then
-            Response.Redirect("~/Login.aspx")
+            Response.Redirect("~/Login.aspx", False)
+            HttpContext.Current.ApplicationInstance.CompleteRequest()
             Return
         End If
 
@@ -191,7 +192,7 @@ Public Class VaultPage
         End If
     End Sub
 
-    ' ── Helpers ──
+    ' â”€â”€ Helpers â”€â”€
 
     Public Function FmtDate(ByVal dateObj As Object) As String
         If dateObj Is Nothing OrElse Convert.IsDBNull(dateObj) OrElse String.IsNullOrEmpty(dateObj.ToString()) Then

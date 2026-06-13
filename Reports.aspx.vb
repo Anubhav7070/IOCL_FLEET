@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Data
 Imports System.Data.SQLite
 
@@ -7,7 +7,8 @@ Public Class ReportsPage
 
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As EventArgs) Handles Me.Load
         If Session("EmployeeId") Is Nothing Then
-            Response.Redirect("~/Login.aspx")
+            Response.Redirect("~/Login.aspx", False)
+            HttpContext.Current.ApplicationInstance.CompleteRequest()
             Return
         End If
 

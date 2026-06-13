@@ -77,14 +77,7 @@
                                     <!-- Card Body -->
                                     <div class="p-4 space-y-4">
                                         <div class="grid grid-cols-2 gap-3 text-xs">
-                                            <div>
-                                                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Driver</p>
-                                                <p class="font-bold text-slate-700 truncate mt-0.5"><%# If(Convert.IsDBNull(Eval("DriverName")) OrElse String.IsNullOrEmpty(Eval("DriverName").ToString()), "N/A", Eval("DriverName")) %></p>
-                                            </div>
-                                            <div>
-                                                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Vendor</p>
-                                                <p class="font-bold text-slate-700 truncate mt-0.5"><%# If(Convert.IsDBNull(Eval("VendorName")) OrElse String.IsNullOrEmpty(Eval("VendorName").ToString()), "N/A", Eval("VendorName")) %></p>
-                                            </div>
+                                            <%# GetDriverVendorHtml(Eval("OwnershipType"), Eval("DriverName"), Eval("VendorName")) %>
                                             <div class="col-span-2 border-t border-slate-50 pt-2">
                                                 <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Department</p>
                                                 <p class="font-bold text-[#0054A6] truncate mt-0.5"><%# Eval("DeptCode") %></p>
@@ -148,8 +141,11 @@
 
                     <!-- Meta specs -->
                     <div class="border-t border-slate-100 pt-4 space-y-2.5 text-xs">
-                        <div class="flex justify-between"><span class="text-slate-400 font-semibold">Driver:</span> <span class="font-bold text-slate-700"><asp:Label ID="lblDriver" runat="server"></asp:Label></span></div>
-                        <div class="flex justify-between"><span class="text-slate-400 font-semibold">Contractor/Vendor:</span> <span class="font-bold text-slate-700"><asp:Label ID="lblVendor" runat="server"></asp:Label></span></div>
+                        <div id="rowOwnership" runat="server" class="flex justify-between"><span class="text-slate-400 font-semibold">Ownership Type:</span> <span class="font-bold text-[#0054A6]"><asp:Label ID="lblOwnership" runat="server"></asp:Label></span></div>
+                        <div id="rowDriver" runat="server" class="flex justify-between"><span class="text-slate-400 font-semibold">Driver:</span> <span class="font-bold text-slate-700"><asp:Label ID="lblDriver" runat="server"></asp:Label></span></div>
+                        <div id="rowVendor" runat="server" class="flex justify-between"><span class="text-slate-400 font-semibold">Contractor/Vendor:</span> <span class="font-bold text-slate-700"><asp:Label ID="lblVendor" runat="server"></asp:Label></span></div>
+                        <div id="rowEmpNumber" runat="server" class="flex justify-between"><span class="text-slate-400 font-semibold">Employee Number:</span> <span class="font-bold text-slate-700"><asp:Label ID="lblEmpNumber" runat="server"></asp:Label></span></div>
+                        <div id="rowEmpName" runat="server" class="flex justify-between"><span class="text-slate-400 font-semibold">Employee Name:</span> <span class="font-bold text-slate-700"><asp:Label ID="lblEmpName" runat="server"></asp:Label></span></div>
                         <div class="flex justify-between"><span class="text-slate-400 font-semibold">Registered By:</span> <span class="font-bold text-slate-700"><asp:Label ID="lblCreator" runat="server"></asp:Label></span></div>
                     </div>
 
@@ -220,59 +216,119 @@
                     <p class="text-[10px] font-extrabold text-[#0054A6] uppercase tracking-widest">Vehicle Details</p>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div class="col-span-2">
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Ownership Type <span class="text-red-500">*</span></label>
+                            <select id="ddlAddOwnershipType" name="ddlAddOwnershipType" onchange="toggleOwnershipType()" class="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all font-sans">
+                                <option value="Contractual">Contractual Vehicle</option>
+                                <option value="Personal">Personal Vehicle</option>
+                            </select>
+                        </div>
                         <div>
                             <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Plate Number <span class="text-red-500">*</span></label>
                             <asp:TextBox ID="txtAddPlate" runat="server" placeholder="e.g. HR26AB1101" CssClass="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all font-mono uppercase"></asp:TextBox>
                         </div>
-                        <div>
+                        <div id="divTypeContainer">
                             <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Vehicle Type <span class="text-red-500">*</span></label>
                             <asp:TextBox ID="txtAddType" runat="server" placeholder="e.g. Petroleum Tanker" CssClass="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all"></asp:TextBox>
                         </div>
-                        <div>
+                        <div id="divDriverContainer">
                             <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Driver Name</label>
                             <asp:TextBox ID="txtAddDriver" runat="server" placeholder="Full Name" CssClass="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all"></asp:TextBox>
                         </div>
-                        <div>
+                        <div id="divVendorContainer">
                             <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Contractor / Vendor</label>
                             <asp:TextBox ID="txtAddVendor" runat="server" placeholder="Vendor / Company Name" CssClass="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all"></asp:TextBox>
                         </div>
+                        <div id="divEmployeeDetails" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3 col-span-2">
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Employee Number</label>
+                                <input type="text" class="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 bg-slate-100 outline-none font-mono" readonly="readonly" value="<%= If(Session("EmpNumber") IsNot Nothing, Session("EmpNumber").ToString(), "") %>" />
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Employee Name</label>
+                                <input type="text" class="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 bg-slate-100 outline-none" readonly="readonly" value="<%= If(Session("EmployeeName") IsNot Nothing, Session("EmployeeName").ToString(), "") %>" />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- ── Compliance Documents ── -->
+                <!-- ── Compulsory Compliance Documents ── -->
                 <div class="rounded-lg border border-orange-100 bg-orange-50/40 p-4 space-y-4">
                     <div class="flex items-center gap-2">
                         <svg class="h-4 w-4 text-orange-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                        <p class="text-[10px] font-extrabold text-orange-600 uppercase tracking-widest">Compliance Documents (PDF only)</p>
+                        <p class="text-[10px] font-extrabold text-orange-600 uppercase tracking-widest">Compulsory Safety Documents (PDF required)</p>
                     </div>
 
-                    <!-- Each document row: Label | Issue Date | Expiry Date | PDF Upload -->
-                    <% Dim docs() As String = {"ROAD_PERMIT", "AGE_DETERMINATION", "PUC", "FITNESS", "EXPLOSIVE", "GREEN_CARD", "INSURANCE", "CALIBRATION"}
-                       Dim labels() As String = {"Road Permit (RTO)", "Age Determination / DOM", "Pollution Under Control (PUC)", "Fitness Certificate (RTO)", "Explosive License", "Green Card", "Vehicle Insurance", "Calibration Certificate"}
-                       For i As Integer = 0 To docs.Length - 1 %>
+                    <!-- RC (Registration Card) -->
                     <div class="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
                         <p class="text-[10px] font-extrabold text-slate-600 uppercase tracking-widest flex items-center gap-1.5">
-                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#0054A6] text-white text-[8px] font-bold shrink-0"><%= i+1 %></span>
-                            <%= labels(i) %>
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#0054A6] text-white text-[8px] font-bold shrink-0">1</span>
+                            Registration Card (RC) PDF <span class="text-red-500">*</span>
+                        </p>
+                        <div>
+                            <input type="file" id="docFile_VEHICLE_RC" name="docFile_VEHICLE_RC" accept=".pdf" required class="w-full text-[10px] text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-[10px] file:font-bold file:text-[#0054A6] hover:file:bg-blue-100" />
+                        </div>
+                    </div>
+
+                    <!-- Vehicle Insurance -->
+                    <div class="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                        <p class="text-[10px] font-extrabold text-slate-600 uppercase tracking-widest flex items-center gap-1.5">
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#0054A6] text-white text-[8px] font-bold shrink-0">2</span>
+                            Vehicle Insurance PDF <span class="text-red-500">*</span>
                         </p>
                         <div class="grid grid-cols-2 gap-2">
                             <div>
-                                <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Issue Date</label>
-                                <input type="date" name="issueDate_<%= docs(i) %>" class="w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-all" />
+                                <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Issue Date <span class="text-red-500">*</span></label>
+                                <input type="date" id="issueDate_INSURANCE" name="issueDate_INSURANCE" required class="w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-all" />
                             </div>
                             <div>
-                                <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Expiry Date</label>
-                                <input type="date" name="expiryDate_<%= docs(i) %>" class="w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-all" />
+                                <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Expiry Date <span class="text-red-500">*</span></label>
+                                <input type="date" id="expiryDate_INSURANCE" name="expiryDate_INSURANCE" required class="w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-all" />
                             </div>
                         </div>
-                        <div>
-                            <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Document PDF <span class="text-orange-400">(optional at registration)</span></label>
-                            <input type="file" name="docFile_<%= docs(i) %>" accept=".pdf" class="w-full text-[10px] text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-[10px] file:font-bold file:text-[#0054A6] hover:file:bg-blue-100" />
+                        <div class="mt-2">
+                            <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Insurance PDF File <span class="text-red-500">*</span></label>
+                            <input type="file" id="docFile_INSURANCE" name="docFile_INSURANCE" accept=".pdf" required class="w-full text-[10px] text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-[10px] file:font-bold file:text-[#0054A6] hover:file:bg-blue-100" />
                         </div>
                     </div>
-                    <% Next %>
+
+                    <!-- Age Determination -->
+                    <div class="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                        <p class="text-[10px] font-extrabold text-slate-600 uppercase tracking-widest flex items-center gap-1.5">
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#0054A6] text-white text-[8px] font-bold shrink-0">3</span>
+                            Age Determination / DOM PDF <span class="text-red-500">*</span>
+                        </p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Issue Date <span class="text-red-500">*</span></label>
+                                <input type="date" id="issueDate_AGE_DETERMINATION" name="issueDate_AGE_DETERMINATION" required class="w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-all" />
+                            </div>
+                            <div>
+                                <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Expiry Date <span class="text-red-500">*</span></label>
+                                <input type="date" id="expiryDate_AGE_DETERMINATION" name="expiryDate_AGE_DETERMINATION" required class="w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-all" />
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Age Det. PDF File <span class="text-red-500">*</span></label>
+                            <input type="file" id="docFile_AGE_DETERMINATION" name="docFile_AGE_DETERMINATION" accept=".pdf" required class="w-full text-[10px] text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-[10px] file:font-bold file:text-[#0054A6] hover:file:bg-blue-100" />
+                        </div>
+                    </div>
                 </div>
 
+                <!-- ── Optional Compliance Documents ── -->
+                <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-4 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <p class="text-[10px] font-extrabold text-slate-600 uppercase tracking-widest">Additional Documents (Optional)</p>
+                        <button type="button" onclick="addOptionalDocRow()" class="rounded bg-blue-50 hover:bg-blue-100 text-[#0054A6] px-2.5 py-1 text-[10px] font-bold transition-all focus:outline-none">
+                            + Add Document
+                        </button>
+                    </div>
+                    
+                    <input type="hidden" id="optDocCount" name="optDocCount" value="0" />
+                    <div id="optionalDocsContainer" class="space-y-3">
+                        <!-- Dynamic rows appended here -->
+                    </div>
+                </div>
             </div>
 
             <!-- Modal Footer -->
@@ -317,4 +373,108 @@
             </div>
         </div>
     </asp:Panel>
+
+    <script type="text/javascript">
+        function toggleOwnershipType() {
+            var ddl = document.getElementById("ddlAddOwnershipType");
+            if (!ddl) return;
+            
+            var typeContainer = document.getElementById("divTypeContainer");
+            var driverContainer = document.getElementById("divDriverContainer");
+            var vendorContainer = document.getElementById("divVendorContainer");
+            var empContainer = document.getElementById("divEmployeeDetails");
+            
+            var txtType = document.getElementById("<%= txtAddType.ClientID %>");
+            
+            if (ddl.value === "Personal") {
+                if (typeContainer) typeContainer.style.display = "none";
+                if (driverContainer) driverContainer.style.display = "none";
+                if (vendorContainer) vendorContainer.style.display = "none";
+                if (empContainer) empContainer.classList.remove("hidden");
+                if (txtType) txtType.value = "Car";
+            } else {
+                if (typeContainer) typeContainer.style.display = "block";
+                if (driverContainer) driverContainer.style.display = "block";
+                if (vendorContainer) vendorContainer.style.display = "block";
+                if (empContainer) empContainer.classList.add("hidden");
+                if (txtType && txtType.value === "Car") txtType.value = "";
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', (event) => {
+            toggleOwnershipType();
+        });
+
+        let optionalDocIdx = 0;
+
+        function addOptionalDocRow() {
+            optionalDocIdx++;
+            const container = document.getElementById('optionalDocsContainer');
+            const row = document.createElement('div');
+            row.id = `optDocRow_${optionalDocIdx}`;
+            row.className = 'rounded-lg border border-slate-200 bg-white p-3 space-y-2 relative';
+            
+            row.innerHTML = `
+                <button type="button" onclick="removeOptionalDocRow(${optionalDocIdx})" class="absolute top-2 right-2 text-red-500 hover:text-red-700 text-[10px] font-bold transition-all focus:outline-none">
+                    Remove
+                </button>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Doc Type</label>
+                        <select name="optDocType_${optionalDocIdx}" id="optDocType_${optionalDocIdx}" onchange="toggleCustomNameInput(${optionalDocIdx})" class="w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-all">
+                            <option value="ROAD_PERMIT">Road Permit</option>
+                            <option value="PUC">Pollution Under Control (PUC)</option>
+                            <option value="FITNESS">Fitness Certificate</option>
+                            <option value="EXPLOSIVE">Explosive License</option>
+                            <option value="GREEN_CARD">Green Card</option>
+                            <option value="CALIBRATION">Calibration Card</option>
+                            <option value="CUSTOM">Custom Document Type (Specify...)</option>
+                        </select>
+                    </div>
+                    <div class="col-span-2 sm:col-span-1 hidden" id="customNameContainer_${optionalDocIdx}">
+                        <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Custom Doc Name</label>
+                        <input type="text" name="optDocCustomName_${optionalDocIdx}" id="optDocCustomName_${optionalDocIdx}" placeholder="e.g. Health Certificate" class="w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-all" />
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Issue Date</label>
+                        <input type="date" name="optDocIssueDate_${optionalDocIdx}" class="w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-all" />
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Expiry Date</label>
+                        <input type="date" name="optDocExpiryDate_${optionalDocIdx}" class="w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-all" />
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Document File (PDF)</label>
+                    <input type="file" name="optDocFile_${optionalDocIdx}" accept=".pdf" class="w-full text-[10px] text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-[10px] file:font-bold file:text-[#0054A6] hover:file:bg-blue-100" />
+                </div>
+            `;
+            
+            container.appendChild(row);
+            document.getElementById('optDocCount').value = optionalDocIdx;
+        }
+
+        function removeOptionalDocRow(idx) {
+            const row = document.getElementById(`optDocRow_${idx}`);
+            if (row) {
+                row.remove();
+            }
+        }
+
+        function toggleCustomNameInput(idx) {
+            const select = document.getElementById(`optDocType_${idx}`);
+            const container = document.getElementById(`customNameContainer_${idx}`);
+            if (select && select.value === 'CUSTOM') {
+                container.classList.remove('hidden');
+                document.getElementById(`optDocCustomName_${idx}`).setAttribute('required', 'required');
+            } else {
+                container.classList.add('hidden');
+                document.getElementById(`optDocCustomName_${idx}`).removeAttribute('required');
+            }
+        }
+    </script>
 </asp:Content>

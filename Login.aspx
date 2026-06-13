@@ -252,6 +252,37 @@
             letter-spacing: 0.04em;
         }
 
+        /* Forgot / links row */
+        .links-row {
+            display: flex;
+            justify-content: center;
+            margin-top: 14px;
+        }
+
+        .link-forgot {
+            font-size: 11px;
+            color: #475569;
+            text-decoration: none;
+            letter-spacing: 0.03em;
+            transition: color 0.2s;
+        }
+
+        .link-forgot:hover { color: #94a3b8; }
+
+        /* Success info panel */
+        .success-panel {
+            background: rgba(6, 78, 59, 0.25);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 12px;
+            color: #86efac;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
         /* Floating particle dots */
         .particle {
             position: absolute;
@@ -301,6 +332,14 @@
                     </div>
                     <h1>Fleet Compliance Portal</h1>
                     <p>Sign in with your Employee credentials</p>
+                </div>
+
+                <!-- Success Panel (shown after password reset) -->
+                <div class="success-panel" id="pnlResetSuccess" style="display:none;">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="flex-shrink:0;">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Password reset successfully. Please sign in with your new password.
                 </div>
 
                 <!-- Error Panel -->
@@ -357,6 +396,11 @@
                     CssClass="btn-login"
                     Text="Sign In" />
 
+                <!-- Forgot Password link -->
+                <div class="links-row">
+                    <a href="ForgotPassword.aspx" class="link-forgot">Forgot Password?</a>
+                </div>
+
                 <div class="footer-note">
                     IOCL Fleet Compliance &nbsp;|&nbsp; Panipat Refinery
                 </div>
@@ -392,6 +436,18 @@
                 if (btn) btn.click();
             }
         });
+
+        // Show password-reset success banner if redirected from ResetPassword.aspx
+        (function () {
+            var params = new URLSearchParams(window.location.search);
+            if (params.get('reset') === '1') {
+                var panel = document.getElementById('pnlResetSuccess');
+                if (panel) panel.style.display = 'flex';
+                // Clean URL without refreshing
+                history.replaceState(null, '', window.location.pathname);
+            }
+        })();
+
     </script>
 </body>
 </html>

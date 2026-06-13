@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Data
 Imports System.Data.SQLite
 Imports System.Web
@@ -13,7 +13,8 @@ Public Class DefaultPage
 
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As EventArgs) Handles Me.Load
         If Session("EmployeeId") Is Nothing Then
-            Response.Redirect("~/Login.aspx")
+            Response.Redirect("~/Login.aspx", False)
+            HttpContext.Current.ApplicationInstance.CompleteRequest()
             Return
         End If
 
@@ -217,7 +218,7 @@ Public Class DefaultPage
         rptAuditFeed.DataBind()
     End Sub
 
-    ' ── Document Verification Hub (SuperAdmin only) ──
+    ' â”€â”€ Document Verification Hub (SuperAdmin only) â”€â”€
     Private Sub LoadVerificationDocs()
         Dim sql As String = "SELECT 'VEHICLE_RC' As LicenseType, v.Id As Id, v.VehicleNumber, v.Department As DepartmentCode, doc.FileName, doc.FilePath, v.IsVerified As IsVerified " &
                            "FROM Vehicles v " &
@@ -290,6 +291,14 @@ Public Class DefaultPage
                 Dim act As String = If(newVerified = 1, "DOCUMENT_VERIFY", "DOCUMENT_VERIFY_REVOKE")
                 Dim desc As String = "Compliance document " & typeName & " " & If(newVerified = 1, "approved", "revoked") & " for " & plateNum & "."
                 Database.ExecuteNonQuery("INSERT INTO AuditLogs (UserId, Username, Action, Description, IpAddress, Timestamp) VALUES (" & userId & ", @Admin, '" & act & "', @Desc, @IP, datetime('now'));", New SQLiteParameter("@Admin", userStr), New SQLiteParameter("@Desc", desc), New SQLiteParameter("@IP", Request.UserHostAddress))
+                
+                ' Notify employee of approval
+                If newVerified = 1 Then
+                    Dim ownerIdObj As Object = Database.ExecuteScalar("SELECT EmployeeId FROM Vehicles v INNER JOIN ComplianceRecords r ON v.Id = r.VehicleId WHERE r.Id = " & id)
+                    If ownerIdObj IsNot Nothing AndAlso Not Convert.IsDBNull(ownerIdObj) Then
+                        EmailService.NotifyEmployeeOfDocumentApproval(Convert.ToInt32(ownerIdObj), plateNum, typeName)
+                    End If
+                End If
             End If
 
             ' Refresh dashboard
@@ -301,7 +310,7 @@ Public Class DefaultPage
         End If
     End Sub
 
-    ' ── Manual Email Controls (Daily Digest & Alert Scan) ──
+    ' â”€â”€ Manual Email Controls (Daily Digest & Alert Scan) â”€â”€
 
     Protected Sub btnDailyDigest_Click(ByVal sender As Object, ByVal e As EventArgs)
         Dim userId As Integer = Convert.ToInt32(Session("EmployeeId"))
@@ -452,7 +461,7 @@ Public Class DefaultPage
         End Try
     End Sub
 
-    ' ── Shared Helpers ──
+    ' â”€â”€ Shared Helpers â”€â”€
 
     Public Function FmtDate(ByVal d As Object) As String
         If d Is Nothing OrElse Convert.IsDBNull(d) OrElse String.IsNullOrEmpty(d.ToString()) Then Return "Pending"
@@ -482,7 +491,7 @@ Public Class DefaultPage
         End Select
     End Function
 
-    ' ── WebMethods for Polling Notifications (Exposed in Default.aspx.vb for Master page) ──
+    ' â”€â”€ WebMethods for Polling Notifications (Exposed in Default.aspx.vb for Master page) â”€â”€
 
     <WebMethod(EnableSession:=True)>
     Public Shared Function GetLatestNotifications() As String
@@ -530,7 +539,7 @@ Public Class DefaultPage
         End If
     End Sub
 
-    ' ── Reports Export Handling ──
+    ' â”€â”€ Reports Export Handling â”€â”€
 
     Protected Sub btnExportPDF_Click(ByVal sender As Object, ByVal e As EventArgs)
         Try

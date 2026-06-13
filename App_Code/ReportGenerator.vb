@@ -194,34 +194,44 @@ Public Class ReportGenerator
                 MakeHeaderCell(tbl, h, fontHeader, darkRed)
             Next
 
-            Dim alt As Boolean = False
-            For Each row As DataRow In dt.Rows
-                Dim bg As BaseColor = If(alt, lightGray, BaseColor.WHITE)
-                Dim status As String = row("Status").ToString()
-                Dim statusFont As Font = fontCell
-                Select Case status
-                    Case "EXPIRED" : statusFont = fontRed
-                    Case "HIGH_CRITICAL", "MEDIUM_CRITICAL" : statusFont = fontOrange
-                    Case "WARNING" : statusFont = fontAmber
-                End Select
+            If dt.Rows.Count = 0 Then
+                Dim cNoData As New PdfPCell(New Phrase("All refinery-registered vehicles are fully compliant. No pending expiries.", fontCell))
+                cNoData.Colspan = 8
+                cNoData.Padding = 8
+                cNoData.HorizontalAlignment = Element.ALIGN_CENTER
+                cNoData.Border = Rectangle.BOTTOM_BORDER
+                cNoData.BorderColor = New BaseColor(226, 232, 240)
+                tbl.AddCell(cNoData)
+            Else
+                Dim alt As Boolean = False
+                For Each row As DataRow In dt.Rows
+                    Dim bg As BaseColor = If(alt, lightGray, BaseColor.WHITE)
+                    Dim status As String = row("Status").ToString()
+                    Dim statusFont As Font = fontCell
+                    Select Case status
+                        Case "EXPIRED" : statusFont = fontRed
+                        Case "HIGH_CRITICAL", "MEDIUM_CRITICAL" : statusFont = fontOrange
+                        Case "WARNING" : statusFont = fontAmber
+                    End Select
 
-                Dim expiry As String = If(row("ExpiryDate") Is DBNull.Value, "", row("ExpiryDate").ToString())
-                Dim deptName As String = ""
-                If dt.Columns.Contains("DeptName") AndAlso row("DeptName") IsNot DBNull.Value Then deptName = row("DeptName").ToString()
+                    Dim expiry As String = If(row("ExpiryDate") Is DBNull.Value, "", row("ExpiryDate").ToString())
+                    Dim deptName As String = ""
+                    If dt.Columns.Contains("DeptName") AndAlso row("DeptName") IsNot DBNull.Value Then deptName = row("DeptName").ToString()
 
-                MakeCell(tbl, row("VehicleNumber").ToString(), fontCellBold, bg)
-                MakeCell(tbl, deptName, fontCell, bg)
-                MakeCell(tbl, GetLicenseName(row("LicenseType").ToString()), fontCell, bg)
-                MakeCell(tbl, If(row("LicenseNumber") Is DBNull.Value, "PENDING", row("LicenseNumber").ToString()), fontCell, bg)
-                Dim issuingAuth As String = ""
-                If dt.Columns.Contains("IssuingAuthority") AndAlso row("IssuingAuthority") IsNot DBNull.Value Then issuingAuth = row("IssuingAuthority").ToString()
-                MakeCell(tbl, issuingAuth, fontCell, bg)
-                MakeCell(tbl, FmtDate(expiry), statusFont, bg)
-                MakeCell(tbl, status.Replace("_", " "), statusFont, bg)
-                MakeCell(tbl, GetDaysRemaining(expiry), statusFont, bg)
+                    MakeCell(tbl, row("VehicleNumber").ToString(), fontCellBold, bg)
+                    MakeCell(tbl, deptName, fontCell, bg)
+                    MakeCell(tbl, GetLicenseName(row("LicenseType").ToString()), fontCell, bg)
+                    MakeCell(tbl, If(row("LicenseNumber") Is DBNull.Value, "PENDING", row("LicenseNumber").ToString()), fontCell, bg)
+                    Dim issuingAuth As String = ""
+                    If dt.Columns.Contains("IssuingAuthority") AndAlso row("IssuingAuthority") IsNot DBNull.Value Then issuingAuth = row("IssuingAuthority").ToString()
+                    MakeCell(tbl, issuingAuth, fontCell, bg)
+                    MakeCell(tbl, FmtDate(expiry), statusFont, bg)
+                    MakeCell(tbl, status.Replace("_", " "), statusFont, bg)
+                    MakeCell(tbl, GetDaysRemaining(expiry), statusFont, bg)
 
-                alt = Not alt
-            Next
+                    alt = Not alt
+                Next
+            End If
 
             doc.Add(tbl)
             doc.Close()

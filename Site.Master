@@ -35,7 +35,7 @@
     <asp:ContentPlaceHolder ID="head" runat="server"></asp:ContentPlaceHolder>
 </head>
 <body class="bg-gray-50 text-slate-800">
-    <form id="form1" runat="server" class="flex min-h-screen flex-col bg-gray-50">
+    <form id="form1" runat="server" enctype="multipart/form-data" class="flex min-h-screen flex-col bg-gray-50">
         <asp:ScriptManager ID="ScriptManager1" runat="server"></asp:ScriptManager>
 
         <!-- Top Header Navigation -->

@@ -13,7 +13,8 @@ Public Class VehiclesPage
 
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As EventArgs) Handles Me.Load
         If Session("EmployeeId") Is Nothing Then
-            Response.Redirect("~/Login.aspx")
+            Response.Redirect("~/Login.aspx", False)
+            HttpContext.Current.ApplicationInstance.CompleteRequest()
             Return
         End If
 
@@ -41,7 +42,7 @@ Public Class VehiclesPage
         Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
 
         Dim sql As String = "SELECT v.Id, v.VehicleNumber, v.VehicleType, v.DriverName, v.VendorName, v.OverallStatus, " &
-                           "v.Department As DeptCode, v.Department As DeptName " &
+                           "v.Department As DeptCode, v.Department As DeptName, v.OwnershipType " &
                            "FROM Vehicles v"
         
         Dim whereClauses As New List(Of String)()
@@ -111,7 +112,7 @@ Public Class VehiclesPage
     End Sub
 
     Private Sub LoadVehicleDetails(ByVal vehicleId As Integer)
-        Dim sql As String = "SELECT v.*, v.Department As DeptName, e.EmployeeName As CreatorName FROM Vehicles v " &
+        Dim sql As String = "SELECT v.*, v.Department As DeptName, e.EmployeeName As CreatorName, e.EmpNumber As CreatorNumber FROM Vehicles v " &
                            "INNER JOIN Employee e ON v.EmployeeId = e.EmployeeId " &
                            "WHERE v.Id = @VehId LIMIT 1"
         
@@ -121,9 +122,26 @@ Public Class VehiclesPage
         Dim row As DataRow = dt.Rows(0)
         lblPlateNumber.Text = row("VehicleNumber").ToString()
         lblType.Text = row("VehicleType").ToString()
-        lblDriver.Text = If(row("DriverName") Is DBNull.Value OrElse String.IsNullOrEmpty(row("DriverName").ToString()), "N/A", row("DriverName").ToString())
-        lblVendor.Text = If(row("VendorName") Is DBNull.Value OrElse String.IsNullOrEmpty(row("VendorName").ToString()), "N/A", row("VendorName").ToString())
         lblCreator.Text = row("CreatorName").ToString()
+
+        Dim ownershipType As String = If(row("OwnershipType") Is DBNull.Value OrElse String.IsNullOrEmpty(row("OwnershipType").ToString()), "Contractual", row("OwnershipType").ToString())
+        lblOwnership.Text = If(ownershipType = "Personal", "Personal (Car)", "Contractual")
+
+        If ownershipType = "Personal" Then
+            rowDriver.Visible = False
+            rowVendor.Visible = False
+            rowEmpNumber.Visible = True
+            rowEmpName.Visible = True
+            lblEmpNumber.Text = row("CreatorNumber").ToString()
+            lblEmpName.Text = row("CreatorName").ToString()
+        Else
+            rowDriver.Visible = True
+            rowVendor.Visible = True
+            rowEmpNumber.Visible = False
+            rowEmpName.Visible = False
+            lblDriver.Text = If(row("DriverName") Is DBNull.Value OrElse String.IsNullOrEmpty(row("DriverName").ToString()), "N/A", row("DriverName").ToString())
+            lblVendor.Text = If(row("VendorName") Is DBNull.Value OrElse String.IsNullOrEmpty(row("VendorName").ToString()), "N/A", row("VendorName").ToString())
+        End If
 
         ' Verify state badge
         Dim isVerified As Boolean = Convert.ToBoolean(row("IsVerified"))
@@ -210,6 +228,7 @@ Public Class VehiclesPage
         txtAddDriver.Text = ""
         txtAddVendor.Text = ""
         pnlAddModal.Visible = True
+        ClientScript.RegisterStartupScript(Me.GetType(), "ToggleModalUI", "setTimeout(toggleOwnershipType, 100);", True)
     End Sub
 
     Protected Sub btnCloseAddModal_Click(ByVal sender As Object, ByVal e As EventArgs)
@@ -223,11 +242,18 @@ Public Class VehiclesPage
             Return
         End If
 
+        Dim ownershipType As String = If(Request.Form("ddlAddOwnershipType") IsNot Nothing, Request.Form("ddlAddOwnershipType").ToString(), "Contractual")
         Dim plate As String = txtAddPlate.Text.Trim().ToUpper()
         Dim vehicleType As String = txtAddType.Text.Trim()
         Dim driver As String = txtAddDriver.Text.Trim()
         Dim vendor As String = txtAddVendor.Text.Trim()
         Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
+
+        If ownershipType = "Personal" Then
+            vehicleType = "Car"
+            driver = ""
+            vendor = ""
+        End If
 
         If String.IsNullOrEmpty(plate) OrElse String.IsNullOrEmpty(vehicleType) Then
             ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Plate Number and Vehicle Type are required.');", True)
@@ -241,19 +267,54 @@ Public Class VehiclesPage
             Return
         End If
 
+        ' Validate compulsory uploads
+        Dim rcFile As System.Web.HttpPostedFile = Request.Files("docFile_VEHICLE_RC")
+        Dim insFile As System.Web.HttpPostedFile = Request.Files("docFile_INSURANCE")
+        Dim ageFile As System.Web.HttpPostedFile = Request.Files("docFile_AGE_DETERMINATION")
+
+        If rcFile Is Nothing OrElse rcFile.ContentLength = 0 Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Registration Card (RC) PDF file is required.');", True)
+            Return
+        End If
+
+        If insFile Is Nothing OrElse insFile.ContentLength = 0 Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Vehicle Insurance PDF file is required.');", True)
+            Return
+        End If
+
+        Dim insIssueStr As String = Request.Form("issueDate_INSURANCE")
+        Dim insExpiryStr As String = Request.Form("expiryDate_INSURANCE")
+        If String.IsNullOrEmpty(insIssueStr) OrElse String.IsNullOrEmpty(insExpiryStr) Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Insurance Issue and Expiry Dates are required.');", True)
+            Return
+        End If
+
+        If ageFile Is Nothing OrElse ageFile.ContentLength = 0 Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Age Determination / DOM PDF file is required.');", True)
+            Return
+        End If
+
+        Dim ageIssueStr As String = Request.Form("issueDate_AGE_DETERMINATION")
+        Dim ageExpiryStr As String = Request.Form("expiryDate_AGE_DETERMINATION")
+        If String.IsNullOrEmpty(ageIssueStr) OrElse String.IsNullOrEmpty(ageExpiryStr) Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Age Determination Issue and Expiry Dates are required.');", True)
+            Return
+        End If
+
         ' Fetch employee's department from session
         Dim dept As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
 
         Try
-            Dim sqlInsert As String = "INSERT INTO Vehicles (VehicleNumber, VehicleType, Department, DriverName, VendorName, QrCodeUrl, OverallStatus, IsVerified, EmployeeId, CreatedAt, UpdatedAt) " &
-                                      "VALUES (@Plate, @Type, @Dept, @Driver, @Vendor, '', 'PENDING', 0, @EmpId, datetime('now'), datetime('now'));"
+            Dim sqlInsert As String = "INSERT INTO Vehicles (VehicleNumber, VehicleType, Department, DriverName, VendorName, QrCodeUrl, OverallStatus, IsVerified, EmployeeId, OwnershipType, CreatedAt, UpdatedAt) " &
+                                      "VALUES (@Plate, @Type, @Dept, @Driver, @Vendor, '', 'PENDING', 0, @EmpId, @Ownership, datetime('now'), datetime('now'));"
             Database.ExecuteNonQuery(sqlInsert,
                 New SQLiteParameter("@Plate", plate),
                 New SQLiteParameter("@Type", vehicleType),
                 New SQLiteParameter("@Dept", dept),
                 New SQLiteParameter("@Driver", driver),
                 New SQLiteParameter("@Vendor", vendor),
-                New SQLiteParameter("@EmpId", empId)
+                New SQLiteParameter("@EmpId", empId),
+                New SQLiteParameter("@Ownership", ownershipType)
             )
 
             Dim newVehId As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT Id FROM Vehicles WHERE VehicleNumber=@Plate", New SQLiteParameter("@Plate", plate)))
@@ -264,12 +325,35 @@ Public Class VehiclesPage
             Dim uploadDir As String = Server.MapPath("~/App_Data/Uploads/" & newVehId.ToString() & "/")
             If Not Directory.Exists(uploadDir) Then Directory.CreateDirectory(uploadDir)
 
-            Dim docTypes() As String = {"ROAD_PERMIT", "AGE_DETERMINATION", "PUC", "FITNESS", "EXPLOSIVE", "GREEN_CARD", "INSURANCE", "CALIBRATION"}
+            ' 1. Save RC PDF to Documents
+            Dim rcSafeName As String = "VEHICLE_RC_" & Path.GetFileName(rcFile.FileName).Replace(" ", "_")
+            Dim rcSavePath As String = Path.Combine(uploadDir, rcSafeName)
+            rcFile.SaveAs(rcSavePath)
 
-            For Each docType As String In docTypes
-                ' Read dates from raw form POST (plain HTML inputs, not ASP controls)
-                Dim issueDateStr As String = If(Request.Form("issueDate_" & docType), "")
-                Dim expiryDateStr As String = If(Request.Form("expiryDate_" & docType), "")
+            Dim rcRelPath As String = "~/App_Data/Uploads/" & newVehId.ToString() & "/" & rcSafeName
+            Database.ExecuteNonQuery(
+                "INSERT INTO Documents (FileName, FilePath, FileType, FileSize, UploadedBy, CreatedAt) " &
+                "VALUES (@FName, @FPath, 'application/pdf', @FSize, @UpBy, datetime('now'));",
+                New SQLiteParameter("@FName", rcSafeName),
+                New SQLiteParameter("@FPath", rcRelPath),
+                New SQLiteParameter("@FSize", rcFile.ContentLength),
+                New SQLiteParameter("@UpBy", empId)
+            )
+
+            Dim rcDocId As Integer = Convert.ToInt32(Database.ExecuteScalar(
+                "SELECT Id FROM Documents WHERE FilePath=@FPath ORDER BY Id DESC LIMIT 1",
+                New SQLiteParameter("@FPath", rcRelPath)
+            ))
+
+            ' Link Vehicles to the RC DocumentId
+            Database.ExecuteNonQuery("UPDATE Vehicles SET DocumentId=@DocId WHERE Id=@Id", New SQLiteParameter("@DocId", rcDocId), New SQLiteParameter("@Id", newVehId))
+
+            ' 2. Process compulsory compliance documents
+            Dim compulsoryDocs() As String = {"INSURANCE", "AGE_DETERMINATION"}
+            For Each docType As String In compulsoryDocs
+                Dim issueDateStr As String = If(docType = "INSURANCE", insIssueStr, ageIssueStr)
+                Dim expiryDateStr As String = If(docType = "INSURANCE", insExpiryStr, ageExpiryStr)
+                Dim postedFile As System.Web.HttpPostedFile = If(docType = "INSURANCE", insFile, ageFile)
 
                 Dim issueDate As Object = DBNull.Value
                 Dim expiryDate As Object = DBNull.Value
@@ -284,7 +368,7 @@ Public Class VehiclesPage
 
                 If DateTime.TryParse(expiryDateStr, parsedExpiry) Then
                     expiryDate = parsedExpiry.ToString("yyyy-MM-dd")
-                    Dim daysLeft As Integer = (parsedExpiry - DateTime.Today).Days
+                    Dim daysLeft As Integer = (parsedExpiry.Date - DateTime.Today).Days
                     If daysLeft < 0 Then
                         docStatus = "EXPIRED"
                     ElseIf daysLeft <= 30 Then
@@ -296,47 +380,124 @@ Public Class VehiclesPage
                     End If
                 End If
 
-                ' Insert compliance record
+                ' Save file to disk and insert to Documents
+                Dim safeName As String = docType & "_" & Path.GetFileName(postedFile.FileName).Replace(" ", "_")
+                Dim savePath As String = Path.Combine(uploadDir, safeName)
+                postedFile.SaveAs(savePath)
+
+                Dim relPath As String = "~/App_Data/Uploads/" & newVehId.ToString() & "/" & safeName
                 Database.ExecuteNonQuery(
-                    "INSERT INTO ComplianceRecords (VehicleId, LicenseType, LicenseNumber, IssuingAuthority, IssueDate, ExpiryDate, Status, IsVerified, CreatedAt, UpdatedAt) " &
-                    "VALUES (@VId, @LType, NULL, NULL, @IDate, @EDate, @Status, 0, datetime('now'), datetime('now'));",
+                    "INSERT INTO Documents (FileName, FilePath, FileType, FileSize, UploadedBy, CreatedAt) " &
+                    "VALUES (@FName, @FPath, 'application/pdf', @FSize, @UpBy, datetime('now'));",
+                    New SQLiteParameter("@FName", safeName),
+                    New SQLiteParameter("@FPath", relPath),
+                    New SQLiteParameter("@FSize", postedFile.ContentLength),
+                    New SQLiteParameter("@UpBy", empId)
+                )
+
+                Dim docId As Integer = Convert.ToInt32(Database.ExecuteScalar(
+                    "SELECT Id FROM Documents WHERE FilePath=@FPath ORDER BY Id DESC LIMIT 1",
+                    New SQLiteParameter("@FPath", relPath)
+                ))
+
+                ' Insert compliance record linked to DocumentId
+                Database.ExecuteNonQuery(
+                    "INSERT INTO ComplianceRecords (VehicleId, LicenseType, LicenseNumber, IssuingAuthority, IssueDate, ExpiryDate, Status, DocumentId, IsVerified, CreatedAt, UpdatedAt) " &
+                    "VALUES (@VId, @LType, NULL, NULL, @IDate, @EDate, @Status, @DocId, 0, datetime('now'), datetime('now'));",
                     New SQLiteParameter("@VId", newVehId),
                     New SQLiteParameter("@LType", docType),
                     New SQLiteParameter("@IDate", issueDate),
                     New SQLiteParameter("@EDate", expiryDate),
-                    New SQLiteParameter("@Status", docStatus)
+                    New SQLiteParameter("@Status", docStatus),
+                    New SQLiteParameter("@DocId", docId)
                 )
+            Next
 
-                ' Handle PDF upload if provided
-                Dim fileKey As String = "docFile_" & docType
-                Dim postedFile As HttpPostedFile = Request.Files(fileKey)
-                If postedFile IsNot Nothing AndAlso postedFile.ContentLength > 0 Then
-                    Dim safeName As String = docType & "_" & Path.GetFileName(postedFile.FileName).Replace(" ", "_")
-                    Dim savePath As String = Path.Combine(uploadDir, safeName)
-                    postedFile.SaveAs(savePath)
+            ' 3. Process optional compliance documents
+            Dim optDocCountStr As String = Request.Form("optDocCount")
+            Dim optDocCount As Integer = 0
+            If Integer.TryParse(optDocCountStr, optDocCount) AndAlso optDocCount > 0 Then
+                For i As Integer = 1 To optDocCount
+                    Dim docTypeVal As String = Request.Form("optDocType_" & i)
+                    If String.IsNullOrEmpty(docTypeVal) Then Continue For
 
-                    ' Get the compliance record Id just inserted
-                    Dim recId As Object = Database.ExecuteScalar(
-                        "SELECT Id FROM ComplianceRecords WHERE VehicleId=@VId AND LicenseType=@LType ORDER BY Id DESC LIMIT 1",
-                        New SQLiteParameter("@VId", newVehId),
-                        New SQLiteParameter("@LType", docType)
-                    )
+                    Dim licenseType As String = docTypeVal
+                    If docTypeVal = "CUSTOM" Then
+                        licenseType = Request.Form("optDocCustomName_" & i)
+                        If String.IsNullOrEmpty(licenseType) Then
+                            licenseType = "CUSTOM_DOCUMENT"
+                        End If
+                    End If
 
-                    If recId IsNot Nothing AndAlso Not Convert.IsDBNull(recId) Then
+                    ' Clean licenseType name for filename use
+                    Dim cleanType As String = licenseType.Replace(" ", "_").Replace("/", "_").Replace("\", "_")
+
+                    Dim issueDateStr As String = Request.Form("optDocIssueDate_" & i)
+                    Dim expiryDateStr As String = Request.Form("optDocExpiryDate_" & i)
+                    Dim postedFile As System.Web.HttpPostedFile = Request.Files("optDocFile_" & i)
+
+                    Dim issueDate As Object = DBNull.Value
+                    Dim expiryDate As Object = DBNull.Value
+                    Dim docStatus As String = "PENDING"
+
+                    Dim parsedIssue As DateTime
+                    Dim parsedExpiry As DateTime
+
+                    If DateTime.TryParse(issueDateStr, parsedIssue) Then
+                        issueDate = parsedIssue.ToString("yyyy-MM-dd")
+                    End If
+
+                    If DateTime.TryParse(expiryDateStr, parsedExpiry) Then
+                        expiryDate = parsedExpiry.ToString("yyyy-MM-dd")
+                        Dim daysLeft As Integer = (parsedExpiry.Date - DateTime.Today).Days
+                        If daysLeft < 0 Then
+                            docStatus = "EXPIRED"
+                        ElseIf daysLeft <= 30 Then
+                            docStatus = "CRITICAL"
+                        ElseIf daysLeft <= 60 Then
+                            docStatus = "WARNING"
+                        Else
+                            docStatus = "ACTIVE"
+                        End If
+                    End If
+
+                    Dim docId As Object = DBNull.Value
+
+                    ' If a file was uploaded, save it and create Document record
+                    If postedFile IsNot Nothing AndAlso postedFile.ContentLength > 0 Then
+                        Dim safeName As String = cleanType & "_" & Path.GetFileName(postedFile.FileName).Replace(" ", "_")
+                        Dim savePath As String = Path.Combine(uploadDir, safeName)
+                        postedFile.SaveAs(savePath)
+
                         Dim relPath As String = "~/App_Data/Uploads/" & newVehId.ToString() & "/" & safeName
                         Database.ExecuteNonQuery(
-                            "INSERT INTO Documents (VehicleId, ComplianceRecordId, DocumentType, FileName, FilePath, UploadedBy, UploadedAt) " &
-                            "VALUES (@VId, @RecId, @DocType, @FName, @FPath, @UpBy, datetime('now'));",
-                            New SQLiteParameter("@VId", newVehId),
-                            New SQLiteParameter("@RecId", Convert.ToInt32(recId)),
-                            New SQLiteParameter("@DocType", docType),
+                            "INSERT INTO Documents (FileName, FilePath, FileType, FileSize, UploadedBy, CreatedAt) " &
+                            "VALUES (@FName, @FPath, 'application/pdf', @FSize, @UpBy, datetime('now'));",
                             New SQLiteParameter("@FName", safeName),
                             New SQLiteParameter("@FPath", relPath),
+                            New SQLiteParameter("@FSize", postedFile.ContentLength),
                             New SQLiteParameter("@UpBy", empId)
                         )
+
+                        docId = Convert.ToInt32(Database.ExecuteScalar(
+                            "SELECT Id FROM Documents WHERE FilePath=@FPath ORDER BY Id DESC LIMIT 1",
+                            New SQLiteParameter("@FPath", relPath)
+                        ))
                     End If
-                End If
-            Next
+
+                    ' Insert into ComplianceRecords
+                    Database.ExecuteNonQuery(
+                        "INSERT INTO ComplianceRecords (VehicleId, LicenseType, LicenseNumber, IssuingAuthority, IssueDate, ExpiryDate, Status, DocumentId, IsVerified, CreatedAt, UpdatedAt) " &
+                        "VALUES (@VId, @LType, NULL, NULL, @IDate, @EDate, @Status, @DocId, 0, datetime('now'), datetime('now'));",
+                        New SQLiteParameter("@VId", newVehId),
+                        New SQLiteParameter("@LType", licenseType),
+                        New SQLiteParameter("@IDate", issueDate),
+                        New SQLiteParameter("@EDate", expiryDate),
+                        New SQLiteParameter("@Status", docStatus),
+                        New SQLiteParameter("@DocId", docId)
+                    )
+                Next
+            End If
 
             ' Update overall vehicle status
             Compliance.UpdateVehicleStatus(newVehId)
@@ -429,7 +590,7 @@ Public Class VehiclesPage
         End Try
     End Sub
 
-    ' ── Visual Helper Functions ──
+    ' â”€â”€ Visual Helper Functions â”€â”€
 
     Public Function GetHeaderBg(ByVal status As Object) As String
         If status Is Nothing Then Return "bg-slate-600"
@@ -510,5 +671,27 @@ Public Class VehiclesPage
             Return dt.ToString("dd-MMM-yyyy")
         End If
         Return dateObj.ToString()
+    End Function
+
+    Public Function GetDriverVendorHtml(ByVal ownershipTypeObj As Object, ByVal driverObj As Object, ByVal vendorObj As Object) As String
+        Dim ownershipType As String = If(ownershipTypeObj Is DBNull.Value OrElse String.IsNullOrEmpty(ownershipTypeObj.ToString()), "Contractual", ownershipTypeObj.ToString())
+        Dim driver As String = If(driverObj Is DBNull.Value OrElse String.IsNullOrEmpty(driverObj.ToString()), "N/A", driverObj.ToString())
+        Dim vendor As String = If(vendorObj Is DBNull.Value OrElse String.IsNullOrEmpty(vendorObj.ToString()), "N/A", vendorObj.ToString())
+
+        If ownershipType = "Personal" Then
+            Return "<div class=""col-span-2"">" &
+                   "  <p class=""text-[9px] font-bold text-slate-400 uppercase tracking-widest"">Ownership</p>" &
+                   "  <p class=""font-bold text-[#0054A6] mt-0.5"">Personal (Car)</p>" &
+                   "</div>"
+        Else
+            Return "<div>" &
+                   "  <p class=""text-[9px] font-bold text-slate-400 uppercase tracking-widest"">Driver</p>" &
+                   "  <p class=""font-bold text-slate-700 truncate mt-0.5"">" & Server.HtmlEncode(driver) & "</p>" &
+                   "</div>" &
+                   "<div>" &
+                   "  <p class=""text-[9px] font-bold text-slate-400 uppercase tracking-widest"">Vendor</p>" &
+                   "  <p class=""font-bold text-slate-700 truncate mt-0.5"">" & Server.HtmlEncode(vendor) & "</p>" &
+                   "</div>"
+        End If
     End Function
 End Class

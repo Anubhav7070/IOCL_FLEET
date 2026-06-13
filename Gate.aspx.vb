@@ -13,12 +13,15 @@ Public Class GatePage
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As EventArgs) Handles Me.Load
         ' Authenticate
         If Session("EmployeeId") Is Nothing Then
-            Response.Redirect("Login.aspx")
+            Response.Redirect("Login.aspx", False)
+            HttpContext.Current.ApplicationInstance.CompleteRequest()
+            Return
         End If
 
         Dim role As String = Session("Role").ToString()
         If role <> "SuperAdmin" AndAlso role <> "GATEMAN" Then
-            Response.Redirect("Default.aspx")
+            Response.Redirect("Default.aspx", False)
+            HttpContext.Current.ApplicationInstance.CompleteRequest()
         End If
 
         If Not IsPostBack Then
@@ -74,7 +77,9 @@ Public Class GatePage
         pnlClearance.Visible = False
 
         Try
-            Dim sql As String = "SELECT v.*, v.Department As DeptName FROM Vehicles v WHERE v.VehicleNumber = @Plate LIMIT 1"
+            Dim sql As String = "SELECT v.*, v.Department As DeptName, e.EmployeeName As CreatorName, e.EmpNumber As CreatorNumber FROM Vehicles v " &
+                               "INNER JOIN Employee e ON v.EmployeeId = e.EmployeeId " &
+                               "WHERE v.VehicleNumber = @Plate LIMIT 1"
             Dim dt As DataTable = Database.ExecuteDataTable(sql, New SQLiteParameter("@Plate", plate))
             If dt.Rows.Count = 0 Then
                 pnlAwaiting.Visible = True
@@ -99,9 +104,26 @@ Public Class GatePage
 
             lblVehPlate.Text = row("VehicleNumber").ToString()
             lblVehType.Text = row("VehicleType").ToString()
-            lblDriverName.Text = If(row("DriverName") Is DBNull.Value OrElse String.IsNullOrEmpty(row("DriverName").ToString()), "N/A", row("DriverName").ToString())
-            lblVendorName.Text = If(row("VendorName") Is DBNull.Value OrElse String.IsNullOrEmpty(row("VendorName").ToString()), "N/A", row("VendorName").ToString())
             lblDeptName.Text = row("DeptName").ToString()
+
+            Dim ownershipType As String = If(row("OwnershipType") Is DBNull.Value OrElse String.IsNullOrEmpty(row("OwnershipType").ToString()), "Contractual", row("OwnershipType").ToString())
+            lblOwnership.Text = If(ownershipType = "Personal", "Personal (Car)", "Contractual")
+
+            If ownershipType = "Personal" Then
+                rowDriver.Visible = False
+                rowVendor.Visible = False
+                rowEmpNumber.Visible = True
+                rowEmpName.Visible = True
+                lblEmpNumber.Text = row("CreatorNumber").ToString()
+                lblEmpName.Text = row("CreatorName").ToString()
+            Else
+                rowDriver.Visible = True
+                rowVendor.Visible = True
+                rowEmpNumber.Visible = False
+                rowEmpName.Visible = False
+                lblDriverName.Text = If(row("DriverName") Is DBNull.Value OrElse String.IsNullOrEmpty(row("DriverName").ToString()), "N/A", row("DriverName").ToString())
+                lblVendorName.Text = If(row("VendorName") Is DBNull.Value OrElse String.IsNullOrEmpty(row("VendorName").ToString()), "N/A", row("VendorName").ToString())
+            End If
 
             ' A vehicle is ALLOWED entry ONLY if overall status is FULLY_COMPLIANT and verified by SuperAdmin
             If overallStatus = "FULLY_COMPLIANT" AndAlso isVerified Then
@@ -189,7 +211,9 @@ Public Class GatePage
         If String.IsNullOrEmpty(plate) Then Return
 
         Try
-            Dim sql As String = "SELECT v.*, v.Department As DeptName FROM Vehicles v WHERE v.VehicleNumber = @Plate LIMIT 1"
+            Dim sql As String = "SELECT v.*, v.Department As DeptName, e.EmployeeName As CreatorName, e.EmpNumber As CreatorNumber FROM Vehicles v " &
+                               "INNER JOIN Employee e ON v.EmployeeId = e.EmployeeId " &
+                               "WHERE v.VehicleNumber = @Plate LIMIT 1"
             Dim dt As DataTable = Database.ExecuteDataTable(sql, New SQLiteParameter("@Plate", plate))
             If dt.Rows.Count = 0 Then Return
 
@@ -203,6 +227,9 @@ Public Class GatePage
             Dim dept As String = row("Department").ToString()
             Dim isVerified As Boolean = Convert.ToBoolean(row("IsVerified"))
             Dim status As String = If(row("OverallStatus").ToString() = "FULLY_COMPLIANT" AndAlso isVerified, "APPROVED", "DENIED")
+            Dim ownershipType As String = If(row("OwnershipType") Is DBNull.Value OrElse String.IsNullOrEmpty(row("OwnershipType").ToString()), "Contractual", row("OwnershipType").ToString())
+            Dim empNum As String = row("CreatorNumber").ToString()
+            Dim empName As String = row("CreatorName").ToString()
 
             ' Load compliance docs list
             Dim dtDocs As DataTable = Database.ExecuteDataTable("SELECT LicenseType, LicenseNumber, ExpiryDate, Status FROM ComplianceRecords WHERE VehicleId = " & vehId)
@@ -221,7 +248,7 @@ Public Class GatePage
             Dim docsJson As String = serializer.Serialize(docsList)
 
             ' Invoke printing Javascript
-            Dim jsCmd As String = "triggerPrintPass('" & plateNo & "', '" & type & "', '" & driver & "', '" & vendor & "', '" & dept & "', '" & status & "', '" & docsJson.Replace("'", "\'") & "');"
+            Dim jsCmd As String = "triggerPrintPass('" & plateNo & "', '" & type & "', '" & driver.Replace("'", "\'") & "', '" & vendor.Replace("'", "\'") & "', '" & dept & "', '" & status & "', '" & docsJson.Replace("'", "\'") & "', '" & ownershipType & "', '" & empNum & "', '" & empName.Replace("'", "\'") & "');"
             ClientScript.RegisterStartupScript(Me.GetType(), "PrintPass", jsCmd, True)
 
         Catch ex As Exception

@@ -45,7 +45,9 @@ Public Class VerifyPage
 
     Private Sub ProcessVerificationByPlate(ByVal plate As String)
         Try
-            Dim sql As String = "SELECT v.*, v.Department As DeptName FROM Vehicles v WHERE v.VehicleNumber = @Plate LIMIT 1"
+            Dim sql As String = "SELECT v.*, v.Department As DeptName, e.EmployeeName As CreatorName, e.EmpNumber As CreatorNumber FROM Vehicles v " &
+                               "INNER JOIN Employee e ON v.EmployeeId = e.EmployeeId " &
+                               "WHERE v.VehicleNumber = @Plate LIMIT 1"
             Dim dt As DataTable = Database.ExecuteDataTable(sql, New SQLiteParameter("@Plate", plate))
             
             If dt.Rows.Count = 0 Then
@@ -69,9 +71,26 @@ Public Class VerifyPage
 
             lblPlate.Text = row("VehicleNumber").ToString()
             lblCategory.Text = row("VehicleType").ToString()
-            lblDriver.Text = If(row("DriverName") Is DBNull.Value OrElse String.IsNullOrEmpty(row("DriverName").ToString()), "N/A", row("DriverName").ToString())
-            lblVendor.Text = If(row("VendorName") Is DBNull.Value OrElse String.IsNullOrEmpty(row("VendorName").ToString()), "N/A", row("VendorName").ToString())
             lblDept.Text = row("DeptName").ToString()
+
+            Dim ownershipType As String = If(row("OwnershipType") Is DBNull.Value OrElse String.IsNullOrEmpty(row("OwnershipType").ToString()), "Contractual", row("OwnershipType").ToString())
+            lblOwnership.Text = If(ownershipType = "Personal", "Personal (Car)", "Contractual")
+
+            If ownershipType = "Personal" Then
+                rowDriver.Visible = False
+                rowVendor.Visible = False
+                rowEmpNumber.Visible = True
+                rowEmpName.Visible = True
+                lblEmpNumber.Text = row("CreatorNumber").ToString()
+                lblEmpName.Text = row("CreatorName").ToString()
+            Else
+                rowDriver.Visible = True
+                rowVendor.Visible = True
+                rowEmpNumber.Visible = False
+                rowEmpName.Visible = False
+                lblDriver.Text = If(row("DriverName") Is DBNull.Value OrElse String.IsNullOrEmpty(row("DriverName").ToString()), "N/A", row("DriverName").ToString())
+                lblVendor.Text = If(row("VendorName") Is DBNull.Value OrElse String.IsNullOrEmpty(row("VendorName").ToString()), "N/A", row("VendorName").ToString())
+            End If
 
             ' Clearance Rule: Approved ONLY if fully compliant and verified
             If overallStatus = "FULLY_COMPLIANT" AndAlso isVerified Then

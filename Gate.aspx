@@ -30,9 +30,6 @@
         <!-- Header banner -->
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 rounded-xl bg-slate-900 border border-slate-800 text-white p-6 shadow-md shadow-slate-900/10">
             <div class="flex items-center gap-4">
-                <div class="bg-white rounded-lg p-1">
-                    <img src="/iocl-logo.gif" alt="IOCL" class="h-10 w-auto" style="object-fit: contain; mix-blend-mode: multiply;" />
-                </div>
                 <div>
                     <h1 class="text-lg font-bold tracking-wide uppercase">Gate Access Terminal</h1>
                     <p class="text-xs text-slate-400 mt-1">
@@ -149,16 +146,28 @@
                             <div class="text-sm font-semibold text-slate-700 mt-0.5"><asp:Label ID="lblVehType" runat="server"></asp:Label></div>
                         </div>
                         <div>
+                            <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Ownership Type</span>
+                            <div class="text-sm font-semibold text-[#0054A6] mt-0.5"><asp:Label ID="lblOwnership" runat="server"></asp:Label></div>
+                        </div>
+                        <div>
+                            <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Department Scope</span>
+                            <div class="text-sm font-bold text-slate-800 mt-0.5"><asp:Label ID="lblDeptName" runat="server"></asp:Label></div>
+                        </div>
+                        <div id="rowDriver" runat="server">
                             <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Driver Name</span>
                             <div class="text-sm font-semibold text-slate-700 mt-0.5"><asp:Label ID="lblDriverName" runat="server"></asp:Label></div>
                         </div>
-                        <div>
+                        <div id="rowVendor" runat="server">
                             <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Vendor / Contractor</span>
                             <div class="text-sm font-semibold text-slate-700 mt-0.5"><asp:Label ID="lblVendorName" runat="server"></asp:Label></div>
                         </div>
-                        <div class="col-span-2">
-                            <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Department Scope</span>
-                            <div class="text-sm font-bold text-slate-800 mt-0.5"><asp:Label ID="lblDeptName" runat="server"></asp:Label></div>
+                        <div id="rowEmpNumber" runat="server">
+                            <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Employee Number</span>
+                            <div class="text-sm font-semibold text-slate-700 mt-0.5"><asp:Label ID="lblEmpNumber" runat="server"></asp:Label></div>
+                        </div>
+                        <div id="rowEmpName" runat="server">
+                            <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Employee Name</span>
+                            <div class="text-sm font-semibold text-slate-700 mt-0.5"><asp:Label ID="lblEmpName" runat="server"></asp:Label></div>
                         </div>
                     </div>
 
@@ -230,8 +239,11 @@
             <p><strong>Gate Pass Status:</strong> <span style="font-weight:bold; text-transform:uppercase;" id="printStatus">APPROVED</span></p>
             <p><strong>Vehicle Number:</strong> <span id="printPlate">HR26AB1101</span></p>
             <p><strong>Vehicle Type:</strong> <span id="printType">Petroleum Tanker</span></p>
-            <p><strong>Driver Name:</strong> <span id="printDriver">John Doe</span></p>
-            <p><strong>Contractor / Vendor:</strong> <span id="printVendor">Refinery Transport Corp</span></p>
+            <p><strong>Ownership Type:</strong> <span id="printOwnership">Contractual</span></p>
+            <div id="printDriverRow"><p><strong>Driver Name:</strong> <span id="printDriver">John Doe</span></p></div>
+            <div id="printVendorRow"><p><strong>Contractor / Vendor:</strong> <span id="printVendor">Refinery Transport Corp</span></p></div>
+            <div id="printEmpNumRow" style="display:none;"><p><strong>Employee Number:</strong> <span id="printEmpNumber">EmpNum</span></p></div>
+            <div id="printEmpNameRow" style="display:none;"><p><strong>Employee Name:</strong> <span id="printEmpName">EmpName</span></p></div>
             <p><strong>Refinery Department:</strong> <span id="printDept">PR - Fire & Safety</span></p>
             <p><strong>Validation Timestamp:</strong> <span id="printTimestamp"><%= DateTime.Now.ToString("dd-MMM-yyyy HH:mm:ss") %></span></p>
         </div>
@@ -263,13 +275,28 @@
 
     <!-- Script to trigger print, fill printable layout, and handle scanner -->
     <script>
-        function triggerPrintPass(plate, type, driver, vendor, dept, status, docsJson) {
+        function triggerPrintPass(plate, type, driver, vendor, dept, status, docsJson, ownershipType, empNum, empName) {
             document.getElementById('printPlate').innerText = plate;
             document.getElementById('printType').innerText = type;
-            document.getElementById('printDriver').innerText = driver;
-            document.getElementById('printVendor').innerText = vendor;
             document.getElementById('printDept').innerText = dept;
             document.getElementById('printStatus').innerText = status;
+            document.getElementById('printOwnership').innerText = ownershipType || 'Contractual';
+            
+            if (ownershipType === 'Personal') {
+                document.getElementById('printDriverRow').style.display = 'none';
+                document.getElementById('printVendorRow').style.display = 'none';
+                document.getElementById('printEmpNumRow').style.display = 'block';
+                document.getElementById('printEmpNameRow').style.display = 'block';
+                document.getElementById('printEmpNumber').innerText = empNum;
+                document.getElementById('printEmpName').innerText = empName;
+            } else {
+                document.getElementById('printDriverRow').style.display = 'block';
+                document.getElementById('printVendorRow').style.display = 'block';
+                document.getElementById('printEmpNumRow').style.display = 'none';
+                document.getElementById('printEmpNameRow').style.display = 'none';
+                document.getElementById('printDriver').innerText = driver;
+                document.getElementById('printVendor').innerText = vendor;
+            }
             
             const tbody = document.querySelector('#printTable tbody');
             tbody.innerHTML = "";

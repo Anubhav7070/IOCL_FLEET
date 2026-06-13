@@ -14,10 +14,13 @@ A full-featured internal fleet management and compliance tracking portal for IOC
 | Feature | Description |
 |---|---|
 | 🚗 **Vehicle Registry** | Register vehicles with all 8 compliance documents |
+| 🚙 **Ownership Types** | Support for **Personal** (simplified form, auto-assigned as Car, hides driver/vendor info) vs **Contractual** vehicles |
 | 📄 **Document Uploads** | PDF upload for Road Permit, PUC, Fitness, Insurance, etc. |
 | ⏰ **Expiry Tracking** | Automatic status: ACTIVE / WARNING / CRITICAL / EXPIRED |
-| 📧 **Email Alerts** | Owner + SuperAdmin notified on compliance events |
+| 📧 **Daily Expiry Alerts** | Background service emails owners & admins daily about warning/expired statuses with anti-spam daily throttling |
+| 📨 **Always-Attach Digest** | Daily admin summary emails always attach a compiled compliance PDF, even with 0 expiries |
 | 🔑 **Gate Scanner** | QR code scan for gate entry pass verification |
+| 🔐 **OTP Security Flow** | Secure Forgot Password flow + mandatory first-time login email verification OTP |
 | 📊 **Reports** | PDF/Excel compliance reports |
 | 🔒 **Role-Based Access** | SuperAdmin (view all), Employee (own vehicles) |
 | 📝 **Audit Trail** | Full audit log of all system actions |
