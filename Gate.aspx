@@ -368,8 +368,36 @@
                     const code = window.jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
 
                     if (code) {
-                        // Expected URL pattern matches /verify/vehicle/{id} or /verify/{id}
-                        const match = code.data.match(/\/verify\/(?:vehicle\/)?(\d+)/);
+                        // Extract plate parameter from URL format (e.g. /Verify.aspx?plate=HR26AB1101)
+                        let plate = null;
+                        try {
+                            // If it's a full URL
+                            if (code.data.startsWith('http://') || code.data.startsWith('https://')) {
+                                const urlObj = new URL(code.data);
+                                plate = urlObj.searchParams.get("plate");
+                            } else {
+                                // Relative path/string check
+                                const plateMatch = code.data.match(/[?&]plate=([^&]+)/i);
+                                if (plateMatch) {
+                                    plate = decodeURIComponent(plateMatch[1]);
+                                }
+                            }
+                        } catch (e) {
+                            // Fallback regex matching
+                            const plateMatch = code.data.match(/[?&]plate=([^&]+)/i);
+                            if (plateMatch) {
+                                plate = decodeURIComponent(plateMatch[1]);
+                            }
+                        }
+
+                        if (plate) {
+                            this.stop();
+                            this.dotNetHelper.invokeMethodAsync('OnPlateScanned', plate);
+                            return;
+                        }
+
+                        // Fallback: Expected numeric ID URL pattern /verify/vehicle/{id} or /verify/{id}
+                        const match = code.data.match(/\/verify\/(?:vehicle\/)?(\d+)/i);
                         if (match) {
                             const vehicleId = parseInt(match[1]);
                             this.stop();
@@ -426,6 +454,10 @@
                             // Set scanned vehicle ID and trigger postback
                             document.getElementById('<%= hdnScannedVehicleId.ClientID %>').value = arg1;
                             document.getElementById('<%= btnSearchScanned.ClientID %>').click();
+                        } else if (methodName === 'OnPlateScanned') {
+                            // Set plate search text and trigger verification postback
+                            document.getElementById('<%= txtPlateCheck.ClientID %>').value = arg1;
+                            document.getElementById('<%= btnCheck.ClientID %>').click();
                         } else if (methodName === 'OnCameraError') {
                             errDiv.innerText = arg1;
                             errDiv.classList.remove('hidden');
