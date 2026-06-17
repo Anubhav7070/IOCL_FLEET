@@ -20,12 +20,13 @@
                     <span>Gate Scan (Camera)</span>
                 </a>
                 <% Dim role As String = If(Session("Role") IsNot Nothing, Session("Role").ToString(), "")
-                   If role <> "VIEWER" AndAlso role <> "SuperAdmin" Then %>
+                   If role <> "VIEWER" Then %>
                     <asp:LinkButton ID="btnOpenAdd" runat="server" OnClick="btnOpenAddModal_Click" CssClass="flex items-center gap-1.5 rounded bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 px-4 py-2 text-xs font-bold text-white shadow transition-all duration-200 focus:outline-none">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
                         <span>Register Vehicle</span>
                     </asp:LinkButton>
                 <% End If %>
+
             </div>
         </div>
 
@@ -153,6 +154,7 @@
                     <div class="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
                         <asp:Button ID="btnVerifyVehicle" runat="server" CssClass="flex-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 py-2 text-xs font-bold transition-all cursor-pointer focus:outline-none" Text="Approve Verification" OnClick="btnVerifyVehicle_Click" />
                         <asp:HyperLink ID="lnkPrintGatePass" runat="server" CssClass="flex-1 rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 py-2 text-xs font-bold text-center transition-all" Target="_blank" Text="Gate Pass"></asp:HyperLink>
+                        <asp:Button ID="btnOpenEdit" runat="server" CssClass="w-full rounded bg-blue-50 hover:bg-blue-100 text-blue-700 py-2 text-xs font-bold transition-all cursor-pointer focus:outline-none" Text="Edit Vehicle Details" OnClick="btnOpenEditModal_Click" Visible="false" />
                         <asp:Button ID="btnDecommission" runat="server" CssClass="w-full rounded bg-red-50 hover:bg-red-100 text-red-600 py-2 text-xs font-bold transition-all cursor-pointer focus:outline-none" Text="Decommission Vehicle" OnClick="btnDecommission_Click" OnClientClick="return confirm('Are you sure you want to permanently delete this vehicle?');" />
                     </div>
 
@@ -223,6 +225,7 @@
                                 <option value="Personal">Personal Vehicle</option>
                             </select>
                         </div>
+
                         <div>
                             <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Plate Number <span class="text-red-500">*</span></label>
                             <asp:TextBox ID="txtAddPlate" runat="server" placeholder="e.g. HR26AB1101" CssClass="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all font-mono uppercase"></asp:TextBox>
@@ -335,6 +338,67 @@
             <div class="flex gap-3 px-6 py-4 border-t border-slate-100 shrink-0 bg-white">
                 <asp:Button ID="btnCancelAdd" runat="server" CssClass="flex-1 rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 py-2.5 text-xs font-bold cursor-pointer focus:outline-none" Text="Cancel" OnClick="btnCloseAddModal_Click" />
                 <asp:Button ID="btnSaveVehicle" runat="server" CssClass="flex-1 rounded bg-[#0054A6] hover:bg-blue-700 text-white py-2.5 text-xs font-bold cursor-pointer focus:outline-none" Text="Register Vehicle" OnClick="btnSaveVehicle_Click" />
+            </div>
+        </div>
+    </asp:Panel>
+
+
+    <!-- Edit Vehicle Modal — only for SuperAdmin -->
+    <asp:Panel ID="pnlEditModal" runat="server" CssClass="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" Visible="false">
+        <div class="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col" style="max-height:92vh;">
+
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0">
+                <div>
+                    <h3 class="text-sm font-extrabold uppercase text-[#001F5B] tracking-wide">Edit Vehicle Details</h3>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Modify vehicle registration parameters</p>
+                </div>
+                <asp:LinkButton ID="btnCloseEdit" runat="server" OnClick="btnCloseEditModal_Click" CssClass="text-slate-400 hover:text-slate-600 focus:outline-none">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </asp:LinkButton>
+            </div>
+
+            <!-- Scrollable Body -->
+            <div class="overflow-y-auto px-6 py-4 space-y-5 text-xs flex-1">
+                <div class="rounded-lg border border-slate-100 bg-slate-50 p-4 space-y-3">
+                    <p class="text-[10px] font-extrabold text-[#0054A6] uppercase tracking-widest">Vehicle Details</p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div class="col-span-2">
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Ownership Type <span class="text-red-500">*</span></label>
+                            <asp:DropDownList ID="ddlEditOwnershipType" runat="server" OnSelectedIndexChanged="ddlEditOwnershipType_SelectedIndexChanged" AutoPostBack="true" CssClass="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all font-sans">
+                                <asp:ListItem Text="Contractual Vehicle" Value="Contractual"></asp:ListItem>
+                                <asp:ListItem Text="Personal Vehicle" Value="Personal"></asp:ListItem>
+                            </asp:DropDownList>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Plate Number <span class="text-red-500">*</span></label>
+                            <asp:TextBox ID="txtEditPlate" runat="server" placeholder="e.g. HR26AB1101" CssClass="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all font-mono uppercase"></asp:TextBox>
+                        </div>
+                        <div id="divEditTypeContainer" runat="server">
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Vehicle Type <span class="text-red-500">*</span></label>
+                            <asp:TextBox ID="txtEditType" runat="server" placeholder="e.g. Petroleum Tanker" CssClass="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all"></asp:TextBox>
+                        </div>
+                        <div id="divEditDriverContainer" runat="server">
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Driver Name</label>
+                            <asp:TextBox ID="txtEditDriver" runat="server" placeholder="Full Name" CssClass="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all"></asp:TextBox>
+                        </div>
+                        <div id="divEditVendorContainer" runat="server">
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Contractor / Vendor</label>
+                            <asp:TextBox ID="txtEditVendor" runat="server" placeholder="Vendor / Company Name" CssClass="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all"></asp:TextBox>
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Department <span class="text-red-500">*</span></label>
+                            <asp:DropDownList ID="ddlEditDept" runat="server" CssClass="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all font-sans"></asp:DropDownList>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="flex gap-3 px-6 py-4 border-t border-slate-100 shrink-0 bg-white">
+                <asp:Button ID="btnCancelEdit" runat="server" CssClass="flex-1 rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 py-2.5 text-xs font-bold cursor-pointer focus:outline-none" Text="Cancel" OnClick="btnCloseEditModal_Click" />
+                <asp:Button ID="btnSaveEditVehicle" runat="server" CssClass="flex-1 rounded bg-[#0054A6] hover:bg-blue-700 text-white py-2.5 text-xs font-bold cursor-pointer focus:outline-none" Text="Save Changes" OnClick="btnSaveEditVehicle_Click" />
             </div>
         </div>
     </asp:Panel>

@@ -104,19 +104,21 @@
 
         <!-- Charts Row -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="rounded-xl border border-slate-200 bg-white p-5 flex flex-col h-80 shadow-sm">
+            <div class="<%= If(Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "Employee", "lg:col-span-3", "lg:col-span-1") %> rounded-xl border border-slate-200 bg-white p-5 flex flex-col h-80 shadow-sm">
                 <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Fleet Status Breakdown</h3>
                 <div class="relative flex-1 w-full h-full">
                     <canvas id="statusChart"></canvas>
                 </div>
             </div>
             
+            <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() <> "Employee" Then %>
             <div class="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-5 flex flex-col h-80 shadow-sm">
                 <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Division Compliance Comparison</h3>
                 <div class="relative flex-1 w-full h-full">
                     <canvas id="deptChart"></canvas>
                 </div>
             </div>
+            <% End If %>
         </div>
 
         <!-- Alerts & Verification Section -->

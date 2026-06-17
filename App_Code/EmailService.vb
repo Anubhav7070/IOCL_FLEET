@@ -384,4 +384,123 @@ Public Class EmailService
 
         SendEmail(toEmail, subject, sb.ToString())
     End Sub
+
+    ' ─────────────────────────────────────────────────────────────────────────
+    ' New User Registration Notification — sent to all SuperAdmins
+    ' ─────────────────────────────────────────────────────────────────────────
+    Public Shared Sub NotifySuperAdminOfNewUser(ByVal newEmpName As String, ByVal newEmpNo As String,
+                                                ByVal newRole As String, ByVal newDept As String)
+        Dim subject As String = "IOCL Fleet Portal: New User Account Created - " & newEmpName
+
+        Dim deptDisplay As String = If(String.IsNullOrEmpty(newDept), "Global (Refinery-Wide)", newDept)
+        Dim roleDisplay As String = newRole.Replace("_", " ")
+
+        Dim sb As New System.Text.StringBuilder()
+        sb.Append("<!DOCTYPE html><html><head><meta charset='UTF-8'></head>")
+        sb.Append("<body style='margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;'>")
+        sb.Append("<div style='max-width:540px;margin:40px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;'>")
+
+        ' Header
+        sb.Append("<div style='background:linear-gradient(135deg,#0054A6,#0077cc);padding:24px 32px;'>")
+        sb.Append("<h1 style='margin:0;font-size:18px;font-weight:700;color:#fff;'>IOCL Fleet Compliance Portal</h1>")
+        sb.Append("<p style='margin:4px 0 0;font-size:11px;color:rgba(255,255,255,0.8);letter-spacing:0.06em;text-transform:uppercase;'>New User Account Created</p>")
+        sb.Append("</div>")
+
+        ' Body
+        sb.Append("<div style='padding:28px 32px;'>")
+        sb.Append("<p style='color:#334155;font-size:13px;margin:0 0 18px;'>A new user account has been registered in the IOCL Fleet Compliance System. Please review the details below:</p>")
+
+        sb.Append("<table style='width:100%;border-collapse:collapse;font-size:12px;'>")
+        sb.Append("<tr style='background:#f8fafc;'><td style='padding:9px 12px;border:1px solid #e2e8f0;font-weight:bold;color:#475569;'>Full Name</td><td style='padding:9px 12px;border:1px solid #e2e8f0;font-weight:bold;color:#1e293b;'>" & System.Web.HttpUtility.HtmlEncode(newEmpName) & "</td></tr>")
+        sb.Append("<tr><td style='padding:9px 12px;border:1px solid #e2e8f0;font-weight:bold;color:#475569;'>Employee Number</td><td style='padding:9px 12px;border:1px solid #e2e8f0;font-family:monospace;color:#1e293b;'>" & System.Web.HttpUtility.HtmlEncode(newEmpNo) & "</td></tr>")
+        sb.Append("<tr style='background:#f8fafc;'><td style='padding:9px 12px;border:1px solid #e2e8f0;font-weight:bold;color:#475569;'>Access Role</td><td style='padding:9px 12px;border:1px solid #e2e8f0;font-weight:bold;color:#0054A6;'>" & System.Web.HttpUtility.HtmlEncode(roleDisplay) & "</td></tr>")
+        sb.Append("<tr><td style='padding:9px 12px;border:1px solid #e2e8f0;font-weight:bold;color:#475569;'>Department Scope</td><td style='padding:9px 12px;border:1px solid #e2e8f0;color:#1e293b;'>" & System.Web.HttpUtility.HtmlEncode(deptDisplay) & "</td></tr>")
+        sb.Append("<tr style='background:#f8fafc;'><td style='padding:9px 12px;border:1px solid #e2e8f0;font-weight:bold;color:#475569;'>Created At</td><td style='padding:9px 12px;border:1px solid #e2e8f0;color:#1e293b;'>" & DateTime.Now.ToString("dd-MMM-yyyy HH:mm") & " IST</td></tr>")
+        sb.Append("</table>")
+
+        sb.Append("<p style='color:#64748b;font-size:12px;margin:20px 0 0;'>The new user's default password is their Employee Number. They will be prompted to change it on first login.</p>")
+        sb.Append("</div>")
+
+        ' Footer
+        sb.Append("<div style='background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 32px;'>")
+        sb.Append("<p style='margin:0;font-size:10px;color:#94a3b8;text-align:center;letter-spacing:0.04em;'>IOCL FLEET COMPLIANCE SYSTEM &nbsp;|&nbsp; PANIPAT REFINERY &nbsp;|&nbsp; DO NOT REPLY</p>")
+        sb.Append("</div>")
+        sb.Append("</div></body></html>")
+
+        ' Send to all SuperAdmins
+        Dim adminDt As System.Data.DataTable = Database.ExecuteDataTable(
+            "SELECT e.EmailId FROM Authentication a INNER JOIN Employee e ON a.EmployeeId = e.EmployeeId WHERE a.Role = 'SuperAdmin'")
+        For Each row As System.Data.DataRow In adminDt.Rows
+            Dim email As String = row("EmailId").ToString()
+            If Not String.IsNullOrEmpty(email) Then
+                Try
+                    SendEmail(email, subject, sb.ToString())
+                Catch
+                End Try
+            End If
+        Next
+    End Sub
+
+    ' ─────────────────────────────────────────────────────────────────────────
+    ' Merged Compliance Alert — groups multiple expiring docs for same vehicle
+    ' ─────────────────────────────────────────────────────────────────────────
+    Public Shared Sub SendMergedComplianceAlert(ByVal toEmail As String, ByVal toName As String,
+                                                ByVal vehicleNumber As String, ByVal vehicleType As String,
+                                                ByVal department As String,
+                                                ByVal docs As System.Data.DataTable)
+        If docs Is Nothing OrElse docs.Rows.Count = 0 Then Return
+
+        Dim hasExpired As Boolean = False
+        For Each row As System.Data.DataRow In docs.Rows
+            If row("Status").ToString() = "EXPIRED" Then hasExpired = True : Exit For
+        Next
+
+        Dim subject As String
+        If hasExpired Then
+            subject = "EXPIRED DOCUMENTS: " & vehicleNumber & " (" & docs.Rows.Count & " certificates) | IOCL Refinery"
+        Else
+            subject = "Compliance Alert: " & vehicleNumber & " - " & docs.Rows.Count & " expiring certificates | IOCL Refinery"
+        End If
+
+        Dim docRows As New System.Text.StringBuilder()
+        Dim i As Integer = 0
+        For Each row As System.Data.DataRow In docs.Rows
+            Dim bg As String = If(i Mod 2 = 0, "background:#fff;", "background:#f8fafc;")
+            Dim status As String = row("Status").ToString()
+            Dim statusColor As String = If(status = "EXPIRED", "#dc2626", If(status = "HIGH_CRITICAL", "#ea580c", If(status = "MEDIUM_CRITICAL", "#d97706", "#ca8a04")))
+            Dim expDate As String = row("ExpiryDate").ToString()
+            Dim daysLeft As Integer = 0
+            Dim parsedDt As DateTime
+            If DateTime.TryParse(expDate, parsedDt) Then
+                daysLeft = CInt(Math.Ceiling((parsedDt.Date - DateTime.Today).TotalDays))
+            End If
+            Dim daysText As String = If(daysLeft < 0, Math.Abs(daysLeft).ToString() & " days overdue", daysLeft.ToString() & " days remaining")
+
+            docRows.Append("<tr style='" & bg & "'>")
+            docRows.Append("<td style='padding:8px 10px;border:1px solid #e2e8f0;font-weight:bold;'>" & row("LicenseType").ToString().Replace("_", " ") & "</td>")
+            docRows.Append("<td style='padding:8px 10px;border:1px solid #e2e8f0;font-weight:bold;color:#dc2626;'>" & expDate & "</td>")
+            docRows.Append("<td style='padding:8px 10px;border:1px solid #e2e8f0;font-weight:bold;color:" & statusColor & ";'>" & status.Replace("_", " ") & "</td>")
+            docRows.Append("<td style='padding:8px 10px;border:1px solid #e2e8f0;'>" & daysText & "</td>")
+            docRows.Append("</tr>")
+            i += 1
+        Next
+
+        Dim sb As New System.Text.StringBuilder()
+        sb.Append("<div style='font-family:Arial,sans-serif;padding:20px;border:1px solid #e2e8f0;border-radius:8px;max-width:640px;'>")
+        sb.Append("<h2 style='color:#0054A6;border-bottom:2px solid #FF6B00;padding-bottom:10px;'>IOCL Panipat Refinery - Fleet Compliance Alert</h2>")
+        sb.Append("<p>Dear " & toName & ",</p>")
+        sb.Append("<p>The following <strong>" & docs.Rows.Count & " compliance certificate(s)</strong> for vehicle <strong>" & vehicleNumber & "</strong> (" & vehicleType & ") in department <strong>" & department & "</strong> require your attention:</p>")
+
+        sb.Append("<table style='width:100%;border-collapse:collapse;margin-top:15px;font-size:12px;'>")
+        sb.Append("<tr style='background:#f1f5f9;'><th style='padding:8px 10px;border:1px solid #e2e8f0;text-align:left;'>Certificate Type</th><th style='padding:8px 10px;border:1px solid #e2e8f0;text-align:left;'>Expiry Date</th><th style='padding:8px 10px;border:1px solid #e2e8f0;text-align:left;'>Status</th><th style='padding:8px 10px;border:1px solid #e2e8f0;text-align:left;'>Validity</th></tr>")
+        sb.Append(docRows.ToString())
+        sb.Append("</table>")
+
+        sb.Append("<p style='margin-top:20px;'>Please log in to the refinery compliance dashboard to renew the certificates immediately.</p>")
+        sb.Append("<hr style='border:none;border-top:1px solid #e2e8f0;margin:20px 0;' />")
+        sb.Append("<p style='font-size:11px;color:#64748b;'>This is a system generated email. Do not reply. IOCL Fleet Compliance Dept.</p>")
+        sb.Append("</div>")
+
+        SendEmail(toEmail, subject, sb.ToString())
+    End Sub
 End Class

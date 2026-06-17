@@ -21,7 +21,23 @@ Public Class VehiclesPage
         If Not IsPostBack Then
             LoadFilterDepartments()
             LoadVehicles()
+            If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then
+                LoadEditDepartments()
+            End If
         End If
+    End Sub
+
+
+    ' Populates ddlEditDept for SuperAdmin vehicle edit
+    Private Sub LoadEditDepartments()
+        Dim dt As DataTable = Database.ExecuteDataTable(
+            "SELECT DISTINCT Department As Code FROM Employee WHERE Department IS NOT NULL AND Department <> '' ORDER BY Department")
+        If ddlEditDept Is Nothing Then Return
+        ddlEditDept.Items.Clear()
+        ddlEditDept.Items.Add(New ListItem("-- Select Department --", ""))
+        For Each row As DataRow In dt.Rows
+            ddlEditDept.Items.Add(New ListItem(row("Code").ToString(), row("Code").ToString()))
+        Next
     End Sub
 
     Private Sub LoadFilterDepartments()
@@ -52,6 +68,13 @@ Public Class VehiclesPage
         If role = "Employee" Then
             whereClauses.Add("v.EmployeeId = @EmpId")
             parameters.Add(New SQLiteParameter("@EmpId", empId))
+        ElseIf role = "DEPT_ADMIN" Then
+            ' DEPT_ADMIN sees only their department
+            Dim deptScope As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
+            If Not String.IsNullOrEmpty(deptScope) Then
+                whereClauses.Add("v.Department = @DeptScope")
+                parameters.Add(New SQLiteParameter("@DeptScope", deptScope))
+            End If
         End If
 
         ' Search query
@@ -159,6 +182,7 @@ Public Class VehiclesPage
         Dim creatorId As Integer = Convert.ToInt32(row("EmployeeId"))
         Dim loggedInEmpId As Integer = Convert.ToInt32(Session("EmployeeId"))
         btnDecommission.Visible = (Session("Role").ToString() = "SuperAdmin" OrElse creatorId = loggedInEmpId)
+        btnOpenEdit.Visible = (Session("Role").ToString() = "SuperAdmin")
 
         ' QR Code Windshield
         Dim url As String = Request.Url.GetLeftPart(UriPartial.Authority) & "/Verify.aspx?plate=" & Server.UrlEncode(row("VehicleNumber").ToString())
@@ -218,11 +242,6 @@ Public Class VehiclesPage
     End Sub
 
     Protected Sub btnOpenAddModal_Click(ByVal sender As Object, ByVal e As EventArgs)
-        ' Only non-SuperAdmin users may register vehicles
-        If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then
-            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('SuperAdmin cannot register vehicles. Only employees may add vehicles.');", True)
-            Return
-        End If
         txtAddPlate.Text = ""
         txtAddType.Text = ""
         txtAddDriver.Text = ""
@@ -236,18 +255,18 @@ Public Class VehiclesPage
     End Sub
 
     Protected Sub btnSaveVehicle_Click(ByVal sender As Object, ByVal e As EventArgs)
-        ' Block SuperAdmin from registering
-        If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then
-            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('SuperAdmin cannot register vehicles.');", True)
-            Return
-        End If
+        Dim role As String = Session("Role").ToString()
 
         Dim ownershipType As String = If(Request.Form("ddlAddOwnershipType") IsNot Nothing, Request.Form("ddlAddOwnershipType").ToString(), "Contractual")
         Dim plate As String = txtAddPlate.Text.Trim().ToUpper()
         Dim vehicleType As String = txtAddType.Text.Trim()
         Dim driver As String = txtAddDriver.Text.Trim()
         Dim vendor As String = txtAddVendor.Text.Trim()
+
+        ' Always use the currently logged-in employee as the registering owner
         Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
+        Dim dept As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
+
 
         If ownershipType = "Personal" Then
             vehicleType = "Car"
@@ -301,8 +320,6 @@ Public Class VehiclesPage
             Return
         End If
 
-        ' Fetch employee's department from session
-        Dim dept As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
 
         Try
             Dim sqlInsert As String = "INSERT INTO Vehicles (VehicleNumber, VehicleType, Department, DriverName, VendorName, QrCodeUrl, OverallStatus, IsVerified, EmployeeId, OwnershipType, CreatedAt, UpdatedAt) " &
@@ -694,4 +711,144 @@ Public Class VehiclesPage
                    "</div>"
         End If
     End Function
+
+    ' ─── Edit Vehicle Handlers ─────────────────────────────────────────────────
+
+    Protected Sub btnOpenEditModal_Click(ByVal sender As Object, ByVal e As EventArgs)
+        If ViewState("SelectedVehicleId") Is Nothing Then Return
+        Dim vehicleId As Integer = Convert.ToInt32(ViewState("SelectedVehicleId"))
+        
+        Dim sql As String = "SELECT * FROM Vehicles WHERE Id = @Id LIMIT 1"
+        Dim dt As DataTable = Database.ExecuteDataTable(sql, New SQLiteParameter("@Id", vehicleId))
+        If dt.Rows.Count = 0 Then Return
+
+        Dim row As DataRow = dt.Rows(0)
+        txtEditPlate.Text = row("VehicleNumber").ToString()
+        txtEditType.Text = row("VehicleType").ToString()
+        txtEditDriver.Text = If(row("DriverName") Is DBNull.Value, "", row("DriverName").ToString())
+        txtEditVendor.Text = If(row("VendorName") Is DBNull.Value, "", row("VendorName").ToString())
+
+        Dim ownershipType As String = If(row("OwnershipType") Is DBNull.Value OrElse String.IsNullOrEmpty(row("OwnershipType").ToString()), "Contractual", row("OwnershipType").ToString())
+        ddlEditOwnershipType.SelectedValue = ownershipType
+
+        ' Populate/Select Department
+        Dim deptVal As String = If(row("Department") Is DBNull.Value, "", row("Department").ToString())
+        If Not String.IsNullOrEmpty(deptVal) AndAlso ddlEditDept.Items.FindByValue(deptVal) Is Nothing Then
+            ddlEditDept.Items.Add(New ListItem(deptVal, deptVal))
+        End If
+        ddlEditDept.SelectedValue = deptVal
+
+        ' Toggle visibility based on ownership
+        If ownershipType = "Personal" Then
+            divEditTypeContainer.Visible = False
+            divEditDriverContainer.Visible = False
+            divEditVendorContainer.Visible = False
+        Else
+            divEditTypeContainer.Visible = True
+            divEditDriverContainer.Visible = True
+            divEditVendorContainer.Visible = True
+        End If
+
+        pnlEditModal.Visible = True
+    End Sub
+
+    Protected Sub btnCloseEditModal_Click(ByVal sender As Object, ByVal e As EventArgs)
+        pnlEditModal.Visible = False
+    End Sub
+
+    Protected Sub ddlEditOwnershipType_SelectedIndexChanged(ByVal sender As Object, ByVal e As EventArgs)
+        If ddlEditOwnershipType.SelectedValue = "Personal" Then
+            divEditTypeContainer.Visible = False
+            divEditDriverContainer.Visible = False
+            divEditVendorContainer.Visible = False
+        Else
+            divEditTypeContainer.Visible = True
+            divEditDriverContainer.Visible = True
+            divEditVendorContainer.Visible = True
+        End If
+    End Sub
+
+    Protected Sub btnSaveEditVehicle_Click(ByVal sender As Object, ByVal e As EventArgs)
+        If ViewState("SelectedVehicleId") Is Nothing Then Return
+        Dim vehicleId As Integer = Convert.ToInt32(ViewState("SelectedVehicleId"))
+
+        Dim ownershipType As String = ddlEditOwnershipType.SelectedValue
+        Dim plate As String = txtEditPlate.Text.Trim().ToUpper()
+        Dim vehicleType As String = txtEditType.Text.Trim()
+        Dim driver As String = txtEditDriver.Text.Trim()
+        Dim vendor As String = txtEditVendor.Text.Trim()
+        Dim dept As String = ddlEditDept.SelectedValue
+
+        If ownershipType = "Personal" Then
+            vehicleType = "Car"
+            driver = ""
+            vendor = ""
+        End If
+
+        If String.IsNullOrEmpty(plate) OrElse String.IsNullOrEmpty(vehicleType) Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Plate Number and Vehicle Type are required.');", True)
+            Return
+        End If
+
+        If String.IsNullOrEmpty(dept) Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Department selection is required.');", True)
+            Return
+        End If
+
+        ' Validate uniqueness (exclude current vehicle)
+        Dim countObj As Object = Database.ExecuteScalar(
+            "SELECT COUNT(*) FROM Vehicles WHERE VehicleNumber=@Plate AND Id<>@Id",
+            New SQLiteParameter("@Plate", plate),
+            New SQLiteParameter("@Id", vehicleId))
+        If Convert.ToInt32(countObj) > 0 Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Vehicle Plate Number is already registered by another vehicle.');", True)
+            Return
+        End If
+
+        Try
+            Dim sqlUpdate As String = "UPDATE Vehicles SET " &
+                                      "VehicleNumber = @Plate, " &
+                                      "VehicleType = @Type, " &
+                                      "OwnershipType = @Ownership, " &
+                                      "DriverName = @Driver, " &
+                                      "VendorName = @Vendor, " &
+                                      "Department = @Dept, " &
+                                      "UpdatedAt = datetime('now') " &
+                                      "WHERE Id = @Id;"
+            Database.ExecuteNonQuery(sqlUpdate,
+                New SQLiteParameter("@Plate", plate),
+                New SQLiteParameter("@Type", vehicleType),
+                New SQLiteParameter("@Ownership", ownershipType),
+                New SQLiteParameter("@Driver", driver),
+                New SQLiteParameter("@Vendor", vendor),
+                New SQLiteParameter("@Dept", dept),
+                New SQLiteParameter("@Id", vehicleId)
+            )
+
+            ' Log Audit Trail
+            Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
+            Dim username As String = Session("EmployeeName").ToString()
+            Database.ExecuteNonQuery(
+                "INSERT INTO AuditLogs (UserId, Username, Action, Description, IpAddress, Timestamp, VehicleId) " &
+                "VALUES (@EmpId, @User, 'VEHICLE_EDIT', 'Modified vehicle ' || @Plate || ' registration parameters.', @IP, datetime('now'), @VId);",
+                New SQLiteParameter("@EmpId", empId),
+                New SQLiteParameter("@User", username),
+                New SQLiteParameter("@Plate", plate),
+                New SQLiteParameter("@IP", Request.UserHostAddress),
+                New SQLiteParameter("@VId", vehicleId)
+            )
+
+            ' Run compliance updates to recheck overall vehicle status with new dates/specs
+            Compliance.UpdateVehicleStatus(vehicleId)
+
+            pnlEditModal.Visible = False
+            LoadVehicles()
+            LoadVehicleDetails(vehicleId)
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Vehicle updated successfully!');", True)
+
+        Catch ex As Exception
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Edit failed: " & Server.HtmlEncode(ex.Message).Replace("'", "&#39;") & "');", True)
+        End Try
+    End Sub
 End Class
+

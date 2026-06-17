@@ -1,4 +1,4 @@
-﻿Imports System
+Imports System
 Imports System.Data
 Imports System.Data.SQLite
 Imports System.Web
@@ -64,9 +64,52 @@ Public Class UsersPage
 
     Private Sub PopulateDepartmentsDropdown()
         ddlEmpDept.Items.Clear()
-        Dim dt As DataTable = Database.ExecuteDataTable("SELECT DISTINCT Department AS Name FROM Employee WHERE Department IS NOT NULL AND Department != '' ORDER BY Department")
-        For Each row As DataRow In dt.Rows
-            ddlEmpDept.Items.Add(New ListItem(row("Name").ToString(), row("Name").ToString()))
+        
+        Dim uniqueDepts As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        
+        ' Predefined PR (Panipat Refinery) and PNC (Panipat Naphtha Cracker) departments
+        Dim defaultDepts As String() = {
+            "PR - Refinery Operations",
+            "PR - Fire & Safety",
+            "PR - Chemical & Laboratory",
+            "PR - Mechanical Maintenance",
+            "PR - Electrical Maintenance",
+            "PR - Instrumentation Maintenance",
+            "PR - Technical Services",
+            "PR - Materials Management & Logistics",
+            "PR - Finance & Accounts",
+            "PR - Human Resources",
+            "PR - Security",
+            "PNC - Cracker Operations",
+            "PNC - Fire & Safety",
+            "PNC - Chemical & Testing",
+            "PNC - Mechanical Maintenance",
+            "PNC - Electrical Maintenance",
+            "PNC - Instrumentation Maintenance",
+            "PNC - Technical Services",
+            "PNC - Logistics & Warehousing"
+        }
+        
+        For Each dept As String In defaultDepts
+            uniqueDepts.Add(dept)
+        Next
+        
+        ' Add any other departments currently in the database to prevent data loss
+        Try
+            Dim dt As DataTable = Database.ExecuteDataTable("SELECT DISTINCT Department FROM Employee WHERE Department IS NOT NULL AND Department != ''")
+            For Each row As DataRow In dt.Rows
+                uniqueDepts.Add(row("Department").ToString())
+            Next
+        Catch ex As Exception
+            ' Fallback if DB query fails
+        End Try
+        
+        ' Sort departments alphabetically
+        Dim sortedDepts As New List(Of String)(uniqueDepts)
+        sortedDepts.Sort()
+        
+        For Each dept As String In sortedDepts
+            ddlEmpDept.Items.Add(New ListItem(dept, dept))
         Next
     End Sub
 
@@ -138,10 +181,12 @@ Public Class UsersPage
 
     Private Sub ToggleDepartmentScopeControl()
         Dim role As String = ddlEmpRole.SelectedValue
-        If role = "SuperAdmin" OrElse role = "GATEMAN" Then
+        ' SuperAdmin and GATEMAN are global roles — no department scope needed
+        If role = "SuperAdmin" OrElse role = "GATEMAN" OrElse role = "VIEWER" Then
             ddlEmpDept.Visible = False
             lblDeptGlobal.Visible = True
         Else
+            ' Employee and DEPT_ADMIN require a department assignment
             ddlEmpDept.Visible = True
             lblDeptGlobal.Visible = False
         End If
@@ -211,6 +256,12 @@ Public Class UsersPage
                 ' Log Audit
                 Dim sqlCreateAudit As String = "INSERT INTO AuditLogs (UserId, Username, Action, Description, IpAddress, Timestamp) VALUES (" & adminId & ", @Admin, 'EMPLOYEE_CREATE', 'Registered employee ' || @Name || ' (' || @No || ')', @IP, datetime('now'));"
                 Database.ExecuteNonQuery(sqlCreateAudit, New SQLiteParameter("@Admin", adminName), New SQLiteParameter("@Name", name), New SQLiteParameter("@No", empNo), New SQLiteParameter("@IP", Request.UserHostAddress))
+
+                ' Notify all SuperAdmins of the new user
+                Try
+                    EmailService.NotifySuperAdminOfNewUser(name, empNo, role, dept)
+                Catch
+                End Try
 
             Else
                 ' 2. Edit Employee

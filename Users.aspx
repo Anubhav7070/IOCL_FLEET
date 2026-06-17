@@ -130,6 +130,7 @@
                                 <asp:ListItem Text="Super Admin" Value="SuperAdmin"></asp:ListItem>
                                 <asp:ListItem Text="Viewer" Value="VIEWER"></asp:ListItem>
                                 <asp:ListItem Text="Gateman" Value="GATEMAN"></asp:ListItem>
+                                <asp:ListItem Text="Employee" Value="Employee"></asp:ListItem>
                             </asp:DropDownList>
                         </div>
                         <div>

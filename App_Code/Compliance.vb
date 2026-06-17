@@ -94,6 +94,7 @@ Public Class Compliance
         Try
             Console.WriteLine("[ComplianceCheck] Starting compliance scan...")
             Dim today As DateTime = DateTime.Today
+            Dim todayStr As String = today.ToString("yyyy-MM-dd")
 
             Dim dt As DataTable = Database.ExecuteDataTable(
                 "SELECT r.Id, r.VehicleId, r.LicenseType, r.ExpiryDate, r.Status, r.LastAlertSent, " &
@@ -101,8 +102,7 @@ Public Class Compliance
                 "FROM ComplianceRecords r " &
                 "INNER JOIN Vehicles v ON r.VehicleId = v.Id")
 
-            Dim alertCount As Integer = 0
-
+            ' Step 1: Update statuses for all records
             For Each row As DataRow In dt.Rows
                 Dim expiryDate As String = row("ExpiryDate").ToString()
                 If String.IsNullOrEmpty(expiryDate) OrElse expiryDate = "PENDING" Then Continue For
@@ -112,121 +112,139 @@ Public Class Compliance
                 Dim recordId As Integer = Convert.ToInt32(row("Id"))
                 Dim vehicleId As Integer = Convert.ToInt32(row("VehicleId"))
 
-                Dim statusChanged As Boolean = False
                 If currentStatus <> computedStatus Then
                     Database.ExecuteNonQuery(
                         "UPDATE ComplianceRecords SET Status = @Status, LastUpdatedTimestamp = datetime('now'), UpdatedAt = datetime('now') WHERE Id = @Id",
                         New SQLiteParameter("@Status", computedStatus),
                         New SQLiteParameter("@Id", recordId))
-
                     UpdateVehicleStatus(vehicleId)
-                    statusChanged = True
-                End If
-
-                If computedStatus <> "ACTIVE" Then
-                    Dim lastAlertSent As String = If(row("LastAlertSent") Is DBNull.Value, "", row("LastAlertSent").ToString())
-                    Dim todayStr As String = today.ToString("yyyy-MM-dd")
-
-                    Dim shouldSendEmail As Boolean = False
-                    If statusChanged OrElse String.IsNullOrEmpty(lastAlertSent) OrElse lastAlertSent <> todayStr Then
-                        shouldSendEmail = True
-                    End If
-
-                    If shouldSendEmail Then
-                        alertCount += 1
-                        Dim expiry As DateTime
-                        If Not DateTime.TryParse(expiryDate, expiry) Then
-                            expiry = DateTime.Today
-                        End If
-                        Dim diffDays As Integer = Convert.ToInt32(Math.Ceiling((expiry.Date - today).TotalDays))
-                        Dim vehicleNumber As String = row("VehicleNumber").ToString()
-                        Dim licenseType As String = row("LicenseType").ToString()
-                        Dim deptName As String = row("DeptName").ToString()
-                        Dim vehType As String = row("VehicleType").ToString()
-
-                        Dim alertMsg As String = licenseType & " certificate for vehicle " & vehicleNumber & " is now " & computedStatus & " (" & diffDays & " days remaining)."
-                        Dim notifType As String = If(computedStatus = "EXPIRED", "EXPIRED", If(computedStatus = "WARNING", "WARNING", "CRITICAL"))
-
-                        ' Create notification record
-                        Database.ExecuteNonQuery(
-                            "INSERT INTO Notifications (VehicleId, Department, Title, Message, Type, Status, CreatedAt) VALUES (@VehId, @Dept, @Title, @Msg, @Type, 'UNREAD', datetime('now'))",
-                            New SQLiteParameter("@VehId", vehicleId),
-                            New SQLiteParameter("@Dept", deptName),
-                            New SQLiteParameter("@Title", "Compliance Alert: " & licenseType),
-                            New SQLiteParameter("@Msg", alertMsg),
-                            New SQLiteParameter("@Type", notifType))
-
-                        ' Send email alerts ONLY to:
-                        '   1. The employee who registered/added this vehicle
-                        '   2. All SuperAdmin accounts
-                        Dim emailDispatched As Boolean = False
-                        Try
-                            Dim sentEmails As New List(Of String)()
-
-                            ' --- Get vehicle owner (the person who added it) ---
-                            Dim ownerDt As DataTable = Database.ExecuteDataTable(
-                                "SELECT e.EmailId, e.EmployeeName FROM Vehicles v " &
-                                "INNER JOIN Employee e ON v.EmployeeId = e.EmployeeId " &
-                                "WHERE v.Id = @VehId LIMIT 1",
-                                New SQLiteParameter("@VehId", vehicleId))
-
-                            For Each ownerRow As DataRow In ownerDt.Rows
-                                Dim email As String = ownerRow("EmailId").ToString()
-                                Dim name As String = ownerRow("EmployeeName").ToString()
-                                If Not String.IsNullOrEmpty(email) AndAlso Not sentEmails.Contains(email.ToLower()) Then
-                                    sentEmails.Add(email.ToLower())
-                                    Try
-                                        EmailService.SendComplianceAlert(email, name, vehicleNumber, vehType, deptName,
-                                            licenseType, expiryDate, diffDays, computedStatus)
-                                        emailDispatched = True
-                                    Catch emailEx As Exception
-                                        Console.WriteLine("[ComplianceCheck] Failed to email owner " & email & ": " & emailEx.Message)
-                                    End Try
-                                End If
-                            Next
-
-                            ' --- Get all SuperAdmins ---
-                            Dim adminDt As DataTable = Database.ExecuteDataTable(
-                                "SELECT e.EmailId, e.EmployeeName FROM Authentication a " &
-                                "INNER JOIN Employee e ON a.EmployeeId = e.EmployeeId " &
-                                "WHERE a.Role = 'SuperAdmin'")
-
-                            For Each adminRow As DataRow In adminDt.Rows
-                                Dim email As String = adminRow("EmailId").ToString()
-                                Dim name As String = adminRow("EmployeeName").ToString()
-                                If Not String.IsNullOrEmpty(email) AndAlso Not sentEmails.Contains(email.ToLower()) Then
-                                    sentEmails.Add(email.ToLower())
-                                    Try
-                                        EmailService.SendComplianceAlert(email, name, vehicleNumber, vehType, deptName,
-                                            licenseType, expiryDate, diffDays, computedStatus)
-                                        emailDispatched = True
-                                    Catch emailEx As Exception
-                                        Console.WriteLine("[ComplianceCheck] Failed to email SuperAdmin " & email & ": " & emailEx.Message)
-                                    End Try
-                                End If
-                            Next
-
-                        Catch userEx As Exception
-                            Console.WriteLine("[ComplianceCheck] Failed to query recipients for alert emails: " & userEx.Message)
-                        End Try
-
-                        ' If we attempted or sent emails, update the LastAlertSent column so we don't duplicate today
-                        If emailDispatched Then
-                            Database.ExecuteNonQuery(
-                                "UPDATE ComplianceRecords SET LastAlertSent = @LastAlert, UpdatedAt = datetime('now') WHERE Id = @Id",
-                                New SQLiteParameter("@LastAlert", todayStr),
-                                New SQLiteParameter("@Id", recordId))
-                        End If
-                    End If
+                    ' Refresh value in DataTable for grouping step below
+                    row("Status") = computedStatus
                 End If
             Next
 
-            Console.WriteLine("[ComplianceCheck] Scan complete. Generated " & alertCount & " new alerts.")
+            ' Step 2: Group non-active records by vehicle and send ONE merged notification per vehicle
+            ' Build a dictionary: VehicleId -> list of alert rows
+            Dim vehicleGroups As New Dictionary(Of Integer, List(Of DataRow))()
+            For Each row As DataRow In dt.Rows
+                Dim status As String = row("Status").ToString()
+                If status = "ACTIVE" Then Continue For
+                Dim expiryDate As String = row("ExpiryDate").ToString()
+                If String.IsNullOrEmpty(expiryDate) OrElse expiryDate = "PENDING" Then Continue For
+
+                Dim vehicleId As Integer = Convert.ToInt32(row("VehicleId"))
+                Dim lastAlertSent As String = If(row("LastAlertSent") Is DBNull.Value, "", row("LastAlertSent").ToString())
+                ' Only include records that haven't been alerted today
+                If lastAlertSent = todayStr Then Continue For
+
+                If Not vehicleGroups.ContainsKey(vehicleId) Then
+                    vehicleGroups(vehicleId) = New List(Of DataRow)()
+                End If
+                vehicleGroups(vehicleId).Add(row)
+            Next
+
+            Dim alertCount As Integer = 0
+
+            For Each kvp As KeyValuePair(Of Integer, List(Of DataRow)) In vehicleGroups
+                Dim vehicleId As Integer = kvp.Key
+                Dim alertRows As List(Of DataRow) = kvp.Value
+                If alertRows.Count = 0 Then Continue For
+
+                Dim firstRow As DataRow = alertRows(0)
+                Dim vehicleNumber As String = firstRow("VehicleNumber").ToString()
+                Dim vehType As String = firstRow("VehicleType").ToString()
+                Dim deptName As String = firstRow("DeptName").ToString()
+
+                ' Build combined message for in-app notification
+                Dim docList As String = String.Join(", ", alertRows.ConvertAll(Function(r) r("LicenseType").ToString().Replace("_", " ")).ToArray())
+                Dim notifTitle As String = "Compliance Alert: " & vehicleNumber & " (" & alertRows.Count & " document(s))"
+                Dim notifMsg As String = "Vehicle " & vehicleNumber & " has " & alertRows.Count & " expiring/expired certificate(s): " & docList & "."
+
+                ' Insert ONE merged notification for the vehicle
+                Database.ExecuteNonQuery(
+                    "INSERT INTO Notifications (VehicleId, Department, Title, Message, Type, Status, CreatedAt) VALUES (@VehId, @Dept, @Title, @Msg, 'CRITICAL', 'UNREAD', datetime('now'))",
+                    New SQLiteParameter("@VehId", vehicleId),
+                    New SQLiteParameter("@Dept", deptName),
+                    New SQLiteParameter("@Title", notifTitle),
+                    New SQLiteParameter("@Msg", notifMsg))
+
+                alertCount += 1
+
+                ' Build a DataTable of alert docs to pass to merged email
+                Dim docsDt As New DataTable()
+                docsDt.Columns.Add("LicenseType", GetType(String))
+                docsDt.Columns.Add("ExpiryDate", GetType(String))
+                docsDt.Columns.Add("Status", GetType(String))
+                For Each alertRow As DataRow In alertRows
+                    Dim newRow As DataRow = docsDt.NewRow()
+                    newRow("LicenseType") = alertRow("LicenseType").ToString()
+                    newRow("ExpiryDate") = alertRow("ExpiryDate").ToString()
+                    newRow("Status") = alertRow("Status").ToString()
+                    docsDt.Rows.Add(newRow)
+                Next
+
+                ' Send merged email to vehicle owner + SuperAdmins (deduped)
+                Try
+                    Dim sentEmails As New List(Of String)()
+
+                    ' 1. Vehicle owner
+                    Dim ownerDt As DataTable = Database.ExecuteDataTable(
+                        "SELECT e.EmailId, e.EmployeeName FROM Vehicles v " &
+                        "INNER JOIN Employee e ON v.EmployeeId = e.EmployeeId " &
+                        "WHERE v.Id = @VehId LIMIT 1",
+                        New SQLiteParameter("@VehId", vehicleId))
+                    For Each ownerRow As DataRow In ownerDt.Rows
+                        Dim email As String = ownerRow("EmailId").ToString()
+                        Dim name As String = ownerRow("EmployeeName").ToString()
+                        If Not String.IsNullOrEmpty(email) AndAlso Not sentEmails.Contains(email.ToLower()) Then
+                            sentEmails.Add(email.ToLower())
+                            Try
+                                EmailService.SendMergedComplianceAlert(email, name, vehicleNumber, vehType, deptName, docsDt)
+                            Catch emailEx As Exception
+                                Console.WriteLine("[ComplianceCheck] Failed to email owner " & email & ": " & emailEx.Message)
+                            End Try
+                        End If
+                    Next
+
+                    ' 2. All SuperAdmins
+                    Dim adminDt As DataTable = Database.ExecuteDataTable(
+                        "SELECT e.EmailId, e.EmployeeName FROM Authentication a " &
+                        "INNER JOIN Employee e ON a.EmployeeId = e.EmployeeId " &
+                        "WHERE a.Role = 'SuperAdmin'")
+                    For Each adminRow As DataRow In adminDt.Rows
+                        Dim email As String = adminRow("EmailId").ToString()
+                        Dim name As String = adminRow("EmployeeName").ToString()
+                        If Not String.IsNullOrEmpty(email) AndAlso Not sentEmails.Contains(email.ToLower()) Then
+                            sentEmails.Add(email.ToLower())
+                            Try
+                                EmailService.SendMergedComplianceAlert(email, name, vehicleNumber, vehType, deptName, docsDt)
+                            Catch emailEx As Exception
+                                Console.WriteLine("[ComplianceCheck] Failed to email SuperAdmin " & email & ": " & emailEx.Message)
+                            End Try
+                        End If
+                    Next
+
+                    ' Mark all alerted records as sent today
+                    For Each alertRow As DataRow In alertRows
+                        Dim recordId As Integer = Convert.ToInt32(alertRow("Id"))
+                        Database.ExecuteNonQuery(
+                            "UPDATE ComplianceRecords SET LastAlertSent = @LastAlert, UpdatedAt = datetime('now') WHERE Id = @Id",
+                            New SQLiteParameter("@LastAlert", todayStr),
+                            New SQLiteParameter("@Id", recordId))
+                    Next
+
+                Catch userEx As Exception
+                    Console.WriteLine("[ComplianceCheck] Failed to send merged alert for vehicle " & vehicleNumber & ": " & userEx.Message)
+                End Try
+            Next
+
+            Console.WriteLine("[ComplianceCheck] Scan complete. Generated " & alertCount & " vehicle-grouped alerts.")
 
         Catch ex As Exception
             Console.WriteLine("[ComplianceCheck] Error during scan: " & ex.Message)
         End Try
     End Sub
+
 
     ' ─────────────────────────────────────────────────────────────────────────
     ' Send daily digest emails to SuperAdmins and dept admins

@@ -55,6 +55,13 @@ Public Class ExpiryPage
         If role = "Employee" Then
             whereClauses.Add("v.EmployeeId = @EmpId")
             parameters.Add(New SQLiteParameter("@EmpId", empId))
+        ElseIf role = "DEPT_ADMIN" Then
+            ' DEPT_ADMIN sees only their department
+            Dim deptScope As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
+            If Not String.IsNullOrEmpty(deptScope) Then
+                whereClauses.Add("v.Department = @DeptScope")
+                parameters.Add(New SQLiteParameter("@DeptScope", deptScope))
+            End If
         End If
 
         ' Apply search
@@ -525,6 +532,10 @@ Public Class ExpiryPage
         If dateObj Is Nothing OrElse Convert.IsDBNull(dateObj) OrElse String.IsNullOrEmpty(dateObj.ToString()) Then
             Return "PENDING"
         End If
+    Public Function FmtDate(ByVal dateObj As Object) As String
+        If dateObj Is Nothing OrElse Convert.IsDBNull(dateObj) OrElse String.IsNullOrEmpty(dateObj.ToString()) Then
+            Return "PENDING"
+        End If
         Dim dt As DateTime
         If DateTime.TryParse(dateObj.ToString(), dt) Then
             Return dt.ToString("dd-MMM-yyyy")
@@ -536,7 +547,7 @@ Public Class ExpiryPage
         If expiryDateObj Is Nothing OrElse Convert.IsDBNull(expiryDateObj) OrElse String.IsNullOrEmpty(expiryDateObj.ToString()) Then
             Return "N/A"
         End If
-        
+
         Dim expiry As DateTime
         If Not DateTime.TryParse(expiryDateObj.ToString(), expiry) Then Return "N/A"
 
@@ -547,4 +558,157 @@ Public Class ExpiryPage
             Return diff.ToString() & " days remaining"
         End If
     End Function
+
+    ' ─── Bulk Renewal Handler ──────────────────────────────────────────────────
+    Protected Sub btnBulkRenew_Click(ByVal sender As Object, ByVal e As EventArgs)
+        If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('SuperAdmin cannot renew documents directly.');", True)
+            Return
+        End If
+
+        Dim bulkIdsRaw As String = Request.Form("hdnBulkSelectedIds")
+        If String.IsNullOrEmpty(bulkIdsRaw) Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('No documents selected for bulk renewal.');", True)
+            Return
+        End If
+
+        Dim remarks As String = If(Request.Form("txtBulkRemarks"), "Bulk renewal batch")
+        Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
+        Dim empName As String = Session("EmployeeName").ToString()
+
+        ' Parse selected record IDs
+        Dim selectedIds As New List(Of Integer)()
+        For Each part As String In bulkIdsRaw.Split(","c)
+            Dim id As Integer = 0
+            If Integer.TryParse(part.Trim(), id) AndAlso id > 0 Then
+                selectedIds.Add(id)
+            End If
+        Next
+
+        If selectedIds.Count = 0 Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('No valid document IDs found.');", True)
+            Return
+        End If
+
+        ' Validate that every selected record has required per-document fields filled
+        For Each recordId As Integer In selectedIds
+            Dim auth As String = Request.Form("authority_" & recordId)
+            Dim issD As String = Request.Form("issueDate_" & recordId)
+            Dim expD As String = Request.Form("expiryDate_" & recordId)
+            If String.IsNullOrEmpty(auth) OrElse String.IsNullOrEmpty(issD) OrElse String.IsNullOrEmpty(expD) Then
+                ClientScript.RegisterStartupScript(Me.GetType(), "Alert",
+                    "alert('Please fill Issuing Authority, Issue Date and Expiry Date for every document (record #" & recordId & ").');", True)
+                Return
+            End If
+            Dim issDt, expDt As DateTime
+            If Not DateTime.TryParse(issD, issDt) OrElse Not DateTime.TryParse(expD, expDt) Then
+                ClientScript.RegisterStartupScript(Me.GetType(), "Alert",
+                    "alert('Invalid date values for document record #" & recordId & ".');", True)
+                Return
+            End If
+            If expDt <= issDt Then
+                ClientScript.RegisterStartupScript(Me.GetType(), "Alert",
+                    "alert('Expiry date must be after issue date for document record #" & recordId & ".');", True)
+                Return
+            End If
+        Next
+
+        Dim renewedCount As Integer = 0
+
+        For Each recordId As Integer In selectedIds
+            Try
+                Dim authority As String     = Request.Form("authority_" & recordId)
+                Dim issueDateStr As String  = Request.Form("issueDate_" & recordId)
+                Dim expiryDateStr As String = Request.Form("expiryDate_" & recordId)
+                Dim calculatedStatus As String = Compliance.CalculateStatus(expiryDateStr)
+
+                ' Handle individual PDF upload for this record
+                Dim newDocId As Object = DBNull.Value
+                Dim uploadedFile As System.Web.HttpPostedFile = Request.Files("docFile_" & recordId)
+                If uploadedFile IsNot Nothing AndAlso uploadedFile.ContentLength > 0 Then
+                    Dim fileExt As String = System.IO.Path.GetExtension(uploadedFile.FileName).ToLower()
+                    If fileExt <> ".pdf" Then
+                        ClientScript.RegisterStartupScript(Me.GetType(), "Alert",
+                            "alert('Only PDF files are accepted. Please fix the upload for document #" & recordId & ".');", True)
+                        Return
+                    End If
+                    Dim uploadFolder As String = Server.MapPath("~/uploads")
+                    If Not System.IO.Directory.Exists(uploadFolder) Then System.IO.Directory.CreateDirectory(uploadFolder)
+                    Dim ts As String = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()
+                    Dim savedName As String = ts & "_REC" & recordId & "_" & System.IO.Path.GetFileName(uploadedFile.FileName)
+                    Dim physPath As String = System.IO.Path.Combine(uploadFolder, savedName)
+                    uploadedFile.SaveAs(physPath)
+                    Dim relPath As String = "/uploads/" & savedName
+                    Database.ExecuteNonQuery(
+                        "INSERT INTO Documents (FileName, FilePath, FileType, FileSize, UploadedBy, CreatedAt) VALUES (@FName, @FPath, 'application/pdf', @FSize, @EmpId, datetime('now'));",
+                        New SQLiteParameter("@FName", savedName),
+                        New SQLiteParameter("@FPath", relPath),
+                        New SQLiteParameter("@FSize", uploadedFile.ContentLength),
+                        New SQLiteParameter("@EmpId", empId))
+                    newDocId = Convert.ToInt32(Database.ExecuteScalar(
+                        "SELECT Id FROM Documents WHERE FilePath=@FPath ORDER BY Id DESC LIMIT 1",
+                        New SQLiteParameter("@FPath", relPath)))
+                End If
+
+                Dim dtOld As DataTable = Database.ExecuteDataTable(
+                    "SELECT VehicleId, LicenseType, ExpiryDate, DocumentId FROM ComplianceRecords WHERE Id = @Id LIMIT 1",
+                    New SQLiteParameter("@Id", recordId))
+                If dtOld.Rows.Count = 0 Then Continue For
+
+                Dim row As DataRow = dtOld.Rows(0)
+                Dim vehicleId As Integer = Convert.ToInt32(row("VehicleId"))
+                Dim licType As String = row("LicenseType").ToString()
+                Dim oldExpiry As String = row("ExpiryDate").ToString()
+                Dim oldDocId As Object = If(row("DocumentId") Is DBNull.Value, CType(DBNull.Value, Object), row("DocumentId"))
+
+                ' Preserve existing document if no new file uploaded for this record
+                If newDocId Is DBNull.Value Then newDocId = oldDocId
+
+                Database.ExecuteNonQuery(
+                    "UPDATE ComplianceRecords SET IssuingAuthority = @Auth, IssueDate = @IssueDate, ExpiryDate = @ExpiryDate, Status = @Status, DocumentId = @DocId, IsVerified = 0, VerifiedBy = NULL, LastUpdatedBy = @User, LastUpdatedTimestamp = datetime('now'), UpdatedAt = datetime('now') WHERE Id = @Id",
+                    New SQLiteParameter("@Auth", authority),
+                    New SQLiteParameter("@IssueDate", issueDateStr),
+                    New SQLiteParameter("@ExpiryDate", expiryDateStr),
+                    New SQLiteParameter("@Status", calculatedStatus),
+                    New SQLiteParameter("@DocId", newDocId),
+                    New SQLiteParameter("@User", empName),
+                    New SQLiteParameter("@Id", recordId))
+
+                Database.ExecuteNonQuery(
+                    "INSERT INTO RenewalHistories (VehicleId, ComplianceRecordId, LicenseType, OldExpiryDate, NewExpiryDate, OldDocumentId, NewDocumentId, RenewedBy, RenewedAt, Remarks) VALUES (@VehId, @RecId, @Type, @OldExp, @NewExp, @OldDoc, @NewDoc, @EmpId, datetime('now'), @Remarks)",
+                    New SQLiteParameter("@VehId", vehicleId),
+                    New SQLiteParameter("@RecId", recordId),
+                    New SQLiteParameter("@Type", licType),
+                    New SQLiteParameter("@OldExp", If(String.IsNullOrEmpty(oldExpiry), CType(DBNull.Value, Object), oldExpiry)),
+                    New SQLiteParameter("@NewExp", expiryDateStr),
+                    New SQLiteParameter("@OldDoc", oldDocId),
+                    New SQLiteParameter("@NewDoc", newDocId),
+                    New SQLiteParameter("@EmpId", empId),
+                    New SQLiteParameter("@Remarks", If(String.IsNullOrEmpty(remarks), "Bulk renewal batch", remarks)))
+
+                Compliance.UpdateVehicleStatus(vehicleId)
+                renewedCount += 1
+
+                Dim dept As String = Database.ExecuteScalar("SELECT Department FROM Vehicles WHERE Id = " & vehicleId).ToString()
+                Dim plateNo As String = Database.ExecuteScalar("SELECT VehicleNumber FROM Vehicles WHERE Id = " & vehicleId).ToString()
+                Database.ExecuteNonQuery(
+                    "INSERT INTO AuditLogs (UserId, Username, Action, Description, OldValue, NewValue, IpAddress, Timestamp, VehicleId, Department) VALUES (" & empId & ", @User, 'BULK_DOCUMENT_RENEWAL', 'Bulk renewed " & licType & " for vehicle " & plateNo & ".', @OldExp, @NewExp, @IP, datetime('now'), " & vehicleId & ", @Dept);",
+                    New SQLiteParameter("@User", empName),
+                    New SQLiteParameter("@OldExp", oldExpiry),
+                    New SQLiteParameter("@NewExp", expiryDateStr),
+                    New SQLiteParameter("@IP", Request.UserHostAddress),
+                    New SQLiteParameter("@Dept", dept))
+            Catch ex As Exception
+                Console.WriteLine("[BulkRenew] Error renewing record " & recordId & ": " & ex.Message)
+            End Try
+        Next
+
+        Try
+            EmailService.NotifySuperAdminsOfRenewal(empName, "[BULK - " & renewedCount & " docs]", "Multiple certificate types")
+        Catch
+        End Try
+
+        LoadAlerts()
+        ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Bulk renewal submitted for " & renewedCount & " document(s). Pending verification.');", True)
+    End Sub
 End Class

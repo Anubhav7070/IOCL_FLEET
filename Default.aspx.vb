@@ -1,4 +1,4 @@
-﻿Imports System
+Imports System
 Imports System.Data
 Imports System.Data.SQLite
 Imports System.Web
@@ -33,42 +33,41 @@ Public Class DefaultPage
     Private Sub LoadDashboardStats()
         Dim role As String = Session("Role").ToString()
         Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
+        Dim dept As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
 
-        Dim whereClause As String = ""
-        Dim param As SQLiteParameter = Nothing
-
+        ' Build scoped WHERE clause based on role
+        Dim scopeWhere As String = ""
+        Dim scopeParam As SQLiteParameter = Nothing
         If role = "Employee" Then
-            whereClause = " WHERE EmployeeId = @EmpId"
-            param = New SQLiteParameter("@EmpId", empId)
+            scopeWhere = " AND EmployeeId = @ScopeId"
+            scopeParam = New SQLiteParameter("@ScopeId", empId)
+        ElseIf role = "DEPT_ADMIN" Then
+            scopeWhere = " AND Department = @ScopeId"
+            scopeParam = New SQLiteParameter("@ScopeId", dept)
         End If
 
+        Dim ExecScalar As Func(Of String, Integer) = Function(sql)
+            Return Convert.ToInt32(If(scopeParam IsNot Nothing, Database.ExecuteScalar(sql, scopeParam), Database.ExecuteScalar(sql)))
+        End Function
+
         ' Total
-        Dim totalSql As String = "SELECT COUNT(*) FROM Vehicles" & whereClause
-        Dim total As Integer = Convert.ToInt32(If(param IsNot Nothing, Database.ExecuteScalar(totalSql, param), Database.ExecuteScalar(totalSql)))
+        Dim total As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE 1=1" & scopeWhere)
         lblTotalVehicles.Text = total.ToString()
 
         ' Fully Compliant
-        Dim compliantSql As String = "SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'FULLY_COMPLIANT'"
-        If role = "Employee" Then compliantSql &= " AND EmployeeId = @EmpId"
-        Dim compliant As Integer = Convert.ToInt32(If(param IsNot Nothing, Database.ExecuteScalar(compliantSql, param), Database.ExecuteScalar(compliantSql)))
+        Dim compliant As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'FULLY_COMPLIANT'" & scopeWhere)
         lblCompliantVehicles.Text = compliant.ToString()
 
         ' Warning
-        Dim warningSql As String = "SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'WARNING'"
-        If role = "Employee" Then warningSql &= " AND EmployeeId = @EmpId"
-        Dim warning As Integer = Convert.ToInt32(If(param IsNot Nothing, Database.ExecuteScalar(warningSql, param), Database.ExecuteScalar(warningSql)))
+        Dim warning As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'WARNING'" & scopeWhere)
         lblWarningVehicles.Text = warning.ToString()
 
         ' Critical
-        Dim criticalSql As String = "SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'CRITICAL'"
-        If role = "Employee" Then criticalSql &= " AND EmployeeId = @EmpId"
-        Dim critical As Integer = Convert.ToInt32(If(param IsNot Nothing, Database.ExecuteScalar(criticalSql, param), Database.ExecuteScalar(criticalSql)))
+        Dim critical As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'CRITICAL'" & scopeWhere)
         lblCriticalVehicles.Text = critical.ToString()
 
         ' Expired
-        Dim expiredSql As String = "SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'EXPIRED'"
-        If role = "Employee" Then expiredSql &= " AND EmployeeId = @EmpId"
-        Dim expired As Integer = Convert.ToInt32(If(param IsNot Nothing, Database.ExecuteScalar(expiredSql, param), Database.ExecuteScalar(expiredSql)))
+        Dim expired As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'EXPIRED'" & scopeWhere)
         lblExpiredVehicles.Text = expired.ToString()
 
         ' Percent
@@ -105,16 +104,26 @@ Public Class DefaultPage
             End Select
         Next
 
-        ' 2. Department comparison scores
-        Dim dtDepts As DataTable = Database.ExecuteDataTable(
-            "SELECT e.Department As Code, " &
-            "COALESCE(CAST(SUM(CASE WHEN r.Status = 'ACTIVE' OR r.Status = 'WARNING' THEN 1 ELSE 0 END) * 100.0 / COUNT(r.Id) AS REAL), 100.0) As ComplianceScore " &
-            "FROM Employee e " &
-            "LEFT JOIN Vehicles v ON e.EmployeeId = v.EmployeeId " &
-            "LEFT JOIN ComplianceRecords r ON v.Id = r.VehicleId " &
-            "WHERE e.Department IS NOT NULL AND e.Department <> '' " &
-            "GROUP BY e.Department " &
-            "ORDER BY ComplianceScore DESC")
+        ' 2. Department comparison scores - only departments with actual vehicles
+        Dim dtDepts As DataTable
+        Dim sqlDepts As String = "SELECT v.Department As Code, " &
+                                 "COALESCE(CAST(SUM(CASE WHEN r.Status = 'ACTIVE' OR r.Status = 'WARNING' THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(r.Id), 0) AS REAL), 100.0) As ComplianceScore " &
+                                 "FROM Vehicles v " &
+                                 "LEFT JOIN ComplianceRecords r ON v.Id = r.VehicleId " &
+                                 "WHERE v.Department IS NOT NULL AND v.Department <> '' "
+
+        If role = "Employee" Then
+            Dim userDept As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
+            sqlDepts &= " AND v.Department = @Dept GROUP BY v.Department ORDER BY ComplianceScore DESC"
+            dtDepts = Database.ExecuteDataTable(sqlDepts, New SQLiteParameter("@Dept", userDept))
+        ElseIf role = "DEPT_ADMIN" Then
+            Dim userDept As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
+            sqlDepts &= " AND v.Department = @Dept GROUP BY v.Department ORDER BY ComplianceScore DESC"
+            dtDepts = Database.ExecuteDataTable(sqlDepts, New SQLiteParameter("@Dept", userDept))
+        Else
+            sqlDepts &= " GROUP BY v.Department ORDER BY ComplianceScore DESC"
+            dtDepts = Database.ExecuteDataTable(sqlDepts)
+        End If
         Dim deptNames As New List(Of String)()
         Dim deptScores As New List(Of Double)()
         For Each row As DataRow In dtDepts.Rows
@@ -156,6 +165,12 @@ Public Class DefaultPage
         If role = "Employee" Then
             sql &= " AND v.EmployeeId = @EmpId"
             params.Add(New SQLiteParameter("@EmpId", empId))
+        ElseIf role = "DEPT_ADMIN" Then
+            Dim deptScope As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
+            If Not String.IsNullOrEmpty(deptScope) Then
+                sql &= " AND v.Department = @DeptScope"
+                params.Add(New SQLiteParameter("@DeptScope", deptScope))
+            End If
         End If
 
         ' Department filter (SuperAdmin only)

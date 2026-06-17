@@ -54,6 +54,9 @@
                             <table class="w-full text-left border-collapse text-xs">
                                 <thead>
                                     <tr class="border-b border-slate-100 text-slate-400 uppercase font-bold tracking-wider">
+                                        <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() <> "SuperAdmin" Then %>
+                                        <th class="py-3 px-2 w-8"><input type="checkbox" id="chkSelectAll" onclick="toggleAllAlerts(this)" class="rounded border-slate-300" title="Select All" /></th>
+                                        <% End If %>
                                         <th class="py-3 px-2">Vehicle No</th>
                                         <th class="py-3 px-2">Division</th>
                                         <th class="py-3 px-2">Document Type</th>
@@ -67,6 +70,15 @@
                         </HeaderTemplate>
                         <ItemTemplate>
                             <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() <> "SuperAdmin" Then %>
+                                <td class="py-3 px-2">
+                                    <input type="checkbox" class="alertCheckbox rounded border-slate-300"
+                                           value='<%# Eval("Id") %>'
+                                           data-vehicle='<%# Eval("VehicleNumber") %>'
+                                           data-type='<%# Eval("LicenseType").ToString().Replace("_", " ") %>'
+                                           onclick="updateBulkBar()" />
+                                </td>
+                                <% End If %>
                                 <td class="py-3 px-2 font-bold font-mono text-slate-800"><%# Eval("VehicleNumber") %></td>
                                 <td class="py-3 px-2 font-semibold text-slate-500"><%# Eval("DeptName") %></td>
                                 <td class="py-3 px-2 font-semibold text-slate-600"><%# Eval("LicenseType").ToString().Replace("_", " ") %></td>
@@ -97,6 +109,16 @@
                         </FooterTemplate>
                     </asp:Repeater>
                 </div>
+
+                <%-- Bulk Action Bar (shown when checkboxes are selected, non-SuperAdmin only) --%>
+                <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() <> "SuperAdmin" Then %>
+                <div id="bulkActionBar" class="hidden mt-4 flex items-center justify-between rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
+                    <span id="bulkCountLabel" class="text-xs font-bold text-[#0054A6]">0 documents selected</span>
+                    <button type="button" onclick="openBulkRenewPanel()" class="rounded bg-[#0054A6] hover:bg-blue-700 text-white px-4 py-2 text-xs font-bold transition-all focus:outline-none">
+                        Bulk Renew Selected
+                    </button>
+                </div>
+                <% End If %>
             </div>
 
             <!-- Right Renewal Process Form (1/3 width) -->
@@ -163,6 +185,40 @@
                     </div>
                 </asp:Panel>
 
+                <%-- Bulk Renewal Panel (shown by JS with per-document upload cards) --%>
+                <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() <> "SuperAdmin" Then %>
+                <div id="pnlBulkRenew" class="hidden">
+                    <div class="rounded-xl border border-blue-200 bg-white p-5 shadow-sm space-y-4">
+                        <div class="border-b border-blue-100 pb-3 flex justify-between items-center">
+                            <span class="text-xs font-extrabold text-[#0054A6] uppercase tracking-widest">Bulk Certificate Renewal</span>
+                            <button type="button" onclick="closeBulkRenewPanel()" class="text-slate-400 hover:text-slate-600 focus:outline-none">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        <p class="text-[10px] text-blue-600 font-semibold">Fill in renewal details for each selected document below.</p>
+
+                        <%-- Hidden field carries comma-separated record IDs to the server --%>
+                        <input type="hidden" name="hdnBulkSelectedIds" id="hdnBulkSelectedIds" />
+
+                        <%-- Per-document cards injected here by JS --%>
+                        <div id="bulkDocCards" class="space-y-4"></div>
+
+                        <%-- Shared remarks --%>
+                        <div class="text-xs">
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Batch Remarks (applies to all)</label>
+                            <textarea name="txtBulkRemarks" id="txtBulkRemarks" rows="2"
+                                      placeholder="e.g. Annual renewal batch"
+                                      class="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all"></textarea>
+                        </div>
+
+                        <div class="flex gap-3 pt-2 border-t border-blue-100">
+                            <button type="button" onclick="closeBulkRenewPanel()" class="flex-1 rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 py-2.5 text-xs font-bold cursor-pointer focus:outline-none">Cancel</button>
+                            <asp:Button ID="btnBulkRenew" runat="server" CssClass="flex-1 rounded bg-[#0054A6] hover:bg-blue-700 text-white py-2.5 text-xs font-bold cursor-pointer focus:outline-none" Text="Submit Bulk Renewal" OnClick="btnBulkRenew_Click" />
+                        </div>
+                    </div>
+                </div>
+                <% End If %>
+
                 <!-- If nothing selected placeholder -->
                 <asp:Panel ID="pnlNoForm" runat="server" CssClass="rounded-xl border-2 border-dashed border-slate-200 bg-white p-12 text-center text-slate-400">
                     <svg class="h-10 w-10 mx-auto mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
@@ -171,4 +227,85 @@
             </div>
         </div>
     </div>
+
+    <script type="text/javascript">
+        function toggleAllAlerts(chk) {
+            document.querySelectorAll('.alertCheckbox').forEach(function(cb) { cb.checked = chk.checked; });
+            updateBulkBar();
+        }
+
+        function updateBulkBar() {
+            var checked = document.querySelectorAll('.alertCheckbox:checked');
+            var bar = document.getElementById('bulkActionBar');
+            var label = document.getElementById('bulkCountLabel');
+            if (!bar) return;
+            if (checked.length > 0) {
+                bar.classList.remove('hidden');
+                label.textContent = checked.length + ' document(s) selected';
+            } else {
+                bar.classList.add('hidden');
+                closeBulkRenewPanel();
+            }
+        }
+
+        function openBulkRenewPanel() {
+            var checked = document.querySelectorAll('.alertCheckbox:checked');
+            if (checked.length === 0) return;
+
+            // Collect IDs and labels
+            var ids = [];
+            checked.forEach(function(cb) { ids.push(cb.value); });
+            document.getElementById('hdnBulkSelectedIds').value = ids.join(',');
+
+            // Build per-document upload cards
+            var container = document.getElementById('bulkDocCards');
+            container.innerHTML = '';
+            checked.forEach(function(cb, idx) {
+                var recId   = cb.value;
+                var vehicle = cb.getAttribute('data-vehicle') || '';
+                var docType = cb.getAttribute('data-type') || 'Document';
+                var num = idx + 1;
+
+                container.innerHTML += [
+                    '<div class="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">',
+                        '<div class="flex items-center gap-2">',
+                            '<span class="flex-none w-6 h-6 rounded-full bg-[#0054A6] text-white text-[10px] font-bold flex items-center justify-center">' + num + '</span>',
+                            '<div>',
+                                '<p class="text-[11px] font-bold text-slate-700">' + docType + '</p>',
+                                '<p class="text-[9px] text-slate-400 font-mono">' + vehicle + '</p>',
+                            '</div>',
+                        '</div>',
+
+                        '<div>',
+                            '<label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Issuing Authority <span class="text-red-500">*</span></label>',
+                            '<input type="text" name="authority_' + recId + '" placeholder="e.g. RTO" class="w-full rounded border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all" />',
+                        '</div>',
+
+                        '<div class="grid grid-cols-2 gap-3">',
+                            '<div>',
+                                '<label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Issue Date <span class="text-red-500">*</span></label>',
+                                '<input type="date" name="issueDate_' + recId + '" class="w-full rounded border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-blue-500 transition-all" />',
+                            '</div>',
+                            '<div>',
+                                '<label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">New Expiry Date <span class="text-red-500">*</span></label>',
+                                '<input type="date" name="expiryDate_' + recId + '" class="w-full rounded border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-blue-500 transition-all" />',
+                            '</div>',
+                        '</div>',
+
+                        '<div>',
+                            '<label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Upload PDF <span class="text-slate-400 font-normal">(optional)</span></label>',
+                            '<input type="file" name="docFile_' + recId + '" accept=".pdf" class="w-full text-[10px] text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-[10px] file:font-bold file:text-[#0054A6] hover:file:bg-blue-100" />',
+                        '</div>',
+                    '</div>'
+                ].join('');
+            });
+
+            document.getElementById('pnlBulkRenew').classList.remove('hidden');
+        }
+
+        function closeBulkRenewPanel() {
+            var panel = document.getElementById('pnlBulkRenew');
+            if (panel) panel.classList.add('hidden');
+        }
+    </script>
 </asp:Content>
