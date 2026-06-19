@@ -7,388 +7,511 @@
 
 <asp:Content ID="Content2" ContentPlaceHolderID="MainContent" runat="server">
     <div class="space-y-6">
-        <!-- Dashboard Title Banner -->
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-lg bg-slate-900 border border-slate-800 text-white p-6 shadow-md shadow-slate-900/10">
-            <div>
-                <h2 class="text-xl font-bold tracking-wide uppercase">Refinery Operations Terminal</h2>
-                <p class="text-xs text-slate-400 mt-1">
-                    Monitoring gate entry clearance and document compliance logs for <%= GetBannerScopeText() %>.
-                </p>
-            </div>
-
-            <!-- Export Report Actions -->
-            <div class="flex flex-wrap items-center gap-3">
-                <asp:LinkButton ID="btnExportPDF" runat="server" OnClick="btnExportPDF_Click" CssClass="flex items-center gap-1.5 rounded bg-blue-600 hover:bg-blue-700 px-3.5 py-2 text-xs font-bold text-white shadow transition-all duration-200 focus:outline-none">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    <span>Export PDF Log</span>
-                </asp:LinkButton>
-                <asp:LinkButton ID="btnExportExcel" runat="server" OnClick="btnExportExcel_Click" CssClass="flex items-center gap-1.5 rounded bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 text-xs font-bold text-white shadow transition-all duration-200 focus:outline-none">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    <span>Export Excel Sheet</span>
-                </asp:LinkButton>
-                <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then %>
-                <asp:LinkButton ID="btnTriggerEmails" runat="server" OnClick="btnTriggerEmails_Click" CssClass="flex items-center gap-1.5 rounded bg-purple-600 hover:bg-purple-700 px-3.5 py-2 text-xs font-bold text-white shadow transition-all duration-200 focus:outline-none">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                    <span>Trigger Compliance Emails</span>
-                </asp:LinkButton>
-                <% End If %>
-                <a href="Reports.aspx" class="flex items-center gap-1.5 rounded bg-slate-700 hover:bg-slate-600 px-3.5 py-2 text-xs font-bold text-white shadow transition-all duration-200">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    <span>Reports</span>
-                </a>
-            </div>
-        </div>
+        <!-- Hidden buttons for postback events -->
+        <asp:LinkButton ID="btnTotalVehiclesClick" runat="server" OnClick="lnkTotalVehicles_Click" style="display:none;" />
+        <asp:LinkButton ID="btnCompliantClick" runat="server" OnClick="lnkCompliantVehicles_Click" style="display:none;" />
+        <asp:LinkButton ID="btnNonCompliantClick" runat="server" OnClick="lnkNonCompliantVehicles_Click" style="display:none;" />
+        <asp:LinkButton ID="btnExpiredClick" runat="server" OnClick="lnkExpiredVehicles_Click" style="display:none;" />
 
         <!-- KPI Cards -->
-        <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            <!-- Card 1: Total Fleet -->
-            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Total Fleet</span>
-                    <span class="rounded bg-blue-50 p-2 text-blue-600">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10M21 16V10a1 1 0 00-1-1h-7m8 7H3" /></svg>
-                    </span>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Card 1: Total Vehicles -->
+            <asp:Panel ID="pnlTotalVehiclesCard" runat="server" CssClass="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-blue-400 transition-all w-full flex items-center justify-between cursor-pointer" onclick="document.getElementById('MainContent_btnTotalVehiclesClick').click();">
+                <div class="flex-1 text-left pr-2">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-widest font-sans">Total Vehicles</span>
+                    <p class="text-2xl font-extrabold text-slate-800 mt-2"><asp:Label ID="lblTotalVehicles" runat="server" Text="0"></asp:Label></p>
                 </div>
-                <p class="text-2xl font-extrabold text-slate-800 mt-2"><asp:Label ID="lblTotalVehicles" runat="server" Text="0"></asp:Label></p>
-                <p class="text-[10px] text-slate-400 mt-1 font-semibold">Registered Vehicles</p>
-            </div>
+                
+                <div class="flex flex-col gap-1.5 shrink-0" onclick="event.stopPropagation();">
+                    <!-- Add Vehicle (+) Link -->
+                    <a href="Vehicles.aspx?add=1" title="Register New Vehicle" class="flex items-center justify-center rounded-lg bg-blue-50 hover:bg-blue-100 p-1.5 text-[#0054A6] transition-all border border-blue-200">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                        </svg>
+                    </a>
+                    <!-- PDF Export Logo -->
+                    <asp:LinkButton ID="btnExportPDF" runat="server" OnClick="btnExportPDF_Click" title="Export PDF Compliance Report" CssClass="flex items-center justify-center rounded-lg bg-red-50 hover:bg-red-100 p-1.5 text-red-600 transition-all border border-red-200 focus:outline-none">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10 9 9 9 8 9"/>
+                        </svg>
+                    </asp:LinkButton>
+                    <!-- Excel Export Logo -->
+                    <asp:LinkButton ID="btnExportExcel" runat="server" OnClick="btnExportExcel_Click" title="Export Excel Compliance Sheet" CssClass="flex items-center justify-center rounded-lg bg-emerald-50 hover:bg-emerald-100 p-1.5 text-emerald-600 transition-all border border-emerald-200 focus:outline-none">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10 9 9 9 8 9"/>
+                        </svg>
+                    </asp:LinkButton>
+                </div>
+            </asp:Panel>
 
             <!-- Card 2: Compliant -->
-            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Compliant</span>
-                    <span class="rounded bg-emerald-50 p-2 text-emerald-600">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </span>
+            <asp:Panel ID="pnlCompliantCard" runat="server" CssClass="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all w-full flex items-center justify-between cursor-pointer" onclick="document.getElementById('MainContent_btnCompliantClick').click();">
+                <div class="flex-1 text-left">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest font-sans">Compliant</span>
+                        <span class="rounded bg-emerald-50 p-2 text-emerald-600 shrink-0">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </span>
+                    </div>
+                    <p class="text-2xl font-extrabold text-emerald-600 mt-2"><asp:Label ID="lblCompliantVehicles" runat="server" Text="0"></asp:Label></p>
+                    <p class="text-[10px] text-emerald-500 mt-1 font-bold"><asp:Label ID="lblCompliantPercent" runat="server" Text="0"></asp:Label>% of Vehicles</p>
                 </div>
-                <p class="text-2xl font-extrabold text-emerald-600 mt-2"><asp:Label ID="lblCompliantVehicles" runat="server" Text="0"></asp:Label></p>
-                <p class="text-[10px] text-emerald-500 mt-1 font-bold"><asp:Label ID="lblCompliantPercent" runat="server" Text="0"></asp:Label>% of Fleet</p>
-            </div>
+            </asp:Panel>
 
-            <!-- Card 3: Warning -->
-            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Warning</span>
-                    <span class="rounded bg-yellow-50 p-2 text-yellow-600">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </span>
+            <!-- Card 3: Non-Compliant -->
+            <asp:Panel ID="pnlNonCompliantCard" runat="server" CssClass="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-orange-400 transition-all w-full flex items-center justify-between cursor-pointer" onclick="document.getElementById('MainContent_btnNonCompliantClick').click();">
+                <div class="flex-1 text-left">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest font-sans">Non-Compliant</span>
+                        <span class="rounded bg-orange-50 p-2 text-orange-600 shrink-0">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        </span>
+                    </div>
+                    <p class="text-2xl font-extrabold text-orange-600 mt-2"><asp:Label ID="lblNonCompliantVehicles" runat="server" Text="0"></asp:Label></p>
+                    <p class="text-[10px] text-orange-500 mt-1 font-bold">Action Required</p>
                 </div>
-                <p class="text-2xl font-extrabold text-yellow-600 mt-2"><asp:Label ID="lblWarningVehicles" runat="server" Text="0"></asp:Label></p>
-                <p class="text-[10px] text-yellow-500 mt-1 font-bold">Pending Expiry</p>
-            </div>
+            </asp:Panel>
 
-            <!-- Card 4: Critical -->
-            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Critical</span>
-                    <span class="rounded bg-orange-50 p-2 text-orange-600">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                    </span>
+            <!-- Card 4: Expired -->
+            <asp:Panel ID="pnlExpiredCard" runat="server" CssClass="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-red-400 transition-all w-full flex items-center justify-between cursor-pointer" onclick="document.getElementById('MainContent_btnExpiredClick').click();">
+                <div class="flex-1 text-left">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest font-sans">Expired</span>
+                        <span class="rounded bg-red-50 p-2 text-red-600 shrink-0">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        </span>
+                    </div>
+                    <p class="text-2xl font-extrabold text-red-600 mt-2"><asp:Label ID="lblExpiredVehicles" runat="server" Text="0"></asp:Label></p>
+                    <p class="text-[10px] text-red-500 mt-1 font-bold">Gate Blocked</p>
                 </div>
-                <p class="text-2xl font-extrabold text-orange-600 mt-2"><asp:Label ID="lblCriticalVehicles" runat="server" Text="0"></asp:Label></p>
-                <p class="text-[10px] text-orange-500 mt-1 font-bold">Action Required</p>
-            </div>
-
-            <!-- Card 5: Expired -->
-            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Expired</span>
-                    <span class="rounded bg-red-50 p-2 text-red-600">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                    </span>
-                </div>
-                <p class="text-2xl font-extrabold text-red-600 mt-2"><asp:Label ID="lblExpiredVehicles" runat="server" Text="0"></asp:Label></p>
-                <p class="text-[10px] text-red-500 mt-1 font-bold">Gate Blocked</p>
-            </div>
+            </asp:Panel>
         </div>
 
-        <!-- Charts Row -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="<%= If(Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "Employee", "lg:col-span-3", "lg:col-span-1") %> rounded-xl border border-slate-200 bg-white p-5 flex flex-col h-80 shadow-sm">
-                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Fleet Status Breakdown</h3>
-                <div class="relative flex-1 w-full h-full">
-                    <canvas id="statusChart"></canvas>
+        <!-- Vehicle Metrics Summary Section -->
+        <asp:Panel ID="pnlMetricsSummary" runat="server" CssClass="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Column 1: Summary by Vehicle Type -->
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                <div class="border-b border-slate-100 pb-3">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Summary by Vehicle Type</h3>
+                    <p class="text-[10px] text-slate-500 mt-0.5">Total counts of registered vehicle types</p>
                 </div>
-            </div>
-            
-            <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() <> "Employee" Then %>
-            <div class="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-5 flex flex-col h-80 shadow-sm">
-                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Division Compliance Comparison</h3>
-                <div class="relative flex-1 w-full h-full">
-                    <canvas id="deptChart"></canvas>
-                </div>
-            </div>
-            <% End If %>
-        </div>
-
-        <!-- Alerts & Verification Section -->
-        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <!-- Alerts & Expiries List -->
-            <div class="xl:col-span-2 rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
-                    <div>
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Compliance Alerts & Expiring Certificates</h3>
-                        <p class="text-xs text-slate-500 mt-0.5">Vehicles with warning or expired status logs</p>
-                    </div>
-                    <!-- Filters -->
-                    <div class="flex items-center gap-2">
-                        <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then %>
-                            <asp:DropDownList ID="ddlAlertDept" runat="server" AutoPostBack="true" OnSelectedIndexChanged="FilterAlerts" CssClass="rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none">
-                            </asp:DropDownList>
-                        <% End If %>
-                        <asp:DropDownList ID="ddlAlertPriority" runat="server" AutoPostBack="true" OnSelectedIndexChanged="FilterAlerts" CssClass="rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none">
-                            <asp:ListItem Value="" Text="All Priorities"></asp:ListItem>
-                            <asp:ListItem Value="HIGH" Text="Expired / High"></asp:ListItem>
-                            <asp:ListItem Value="MEDIUM" Text="Medium"></asp:ListItem>
-                            <asp:ListItem Value="LOW" Text="Warning / Low"></asp:ListItem>
-                        </asp:DropDownList>
-                    </div>
-                </div>
-
-                <div class="overflow-x-auto">
-                    <asp:Repeater ID="rptAlerts" runat="server">
-                        <HeaderTemplate>
-                            <table class="w-full text-left border-collapse text-xs">
-                                <thead>
-                                    <tr class="border-b border-slate-100 text-slate-400 uppercase font-bold tracking-wider">
-                                        <th class="py-3 px-2">Vehicle No</th>
-                                        <th class="py-3 px-2">Division</th>
-                                        <th class="py-3 px-2">Document Slot</th>
-                                        <th class="py-3 px-2">Status</th>
-                                        <th class="py-3 px-2">Expiry Date</th>
-                                        <th class="py-3 px-2 text-right">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                        </HeaderTemplate>
+                <div class="space-y-2 max-h-[300px] overflow-y-auto">
+                    <asp:Repeater ID="rptVehicleTypes" runat="server">
                         <ItemTemplate>
-                            <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                                <td class="py-3 px-2 font-bold font-mono text-slate-800"><%# Eval("VehicleNumber") %></td>
-                                <td class="py-3 px-2 font-semibold text-slate-500"><%# Eval("DepartmentCode") %></td>
-                                <td class="py-3 px-2 font-semibold text-slate-600"><%# Eval("LicenseType").ToString().Replace("_", " ") %></td>
-                                <td class="py-3 px-2">
-                                    <span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase <%# GetBadgeCSS(Eval("Status")) %>">
-                                        <%# Eval("Status") %>
-                                    </span>
-                                </td>
-                                <td class="py-3 px-2 font-semibold text-slate-600 font-mono"><%# FmtDate(Eval("ExpiryDate")) %></td>
-                                <td class="py-3 px-2 text-right">
-                                    <a href="Expiry.aspx?renewId=<%# Eval("Id") %>" class="rounded bg-blue-50 text-blue-600 hover:bg-blue-100 px-2.5 py-1.5 font-bold transition-colors">
-                                        View
-                                    </a>
-                                </td>
-                            </tr>
-                        </ItemTemplate>
-                        <FooterTemplate>
-                                </tbody>
-                            </table>
-                            <%# If(rptAlerts.Items.Count = 0, "<div class='py-12 text-center text-xs text-slate-400'>No active compliance alerts.</div>", "") %>
-                        </FooterTemplate>
-                    </asp:Repeater>
-                </div>
-            </div>
-
-            <!-- Recent Audits & Notifications -->
-            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col h-full space-y-4">
-                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-4">Terminal Operations Log</h3>
-                
-                <div class="flex-1 overflow-y-auto space-y-4 max-h-[400px] pr-1">
-                    <asp:Repeater ID="rptAuditFeed" runat="server">
-                        <ItemTemplate>
-                            <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3 text-[11px] space-y-1.5">
-                                <div class="flex items-center justify-between">
-                                    <span class="font-bold text-blue-600 uppercase tracking-wide"><%# Eval("Action").ToString().Replace("_", " ") %></span>
-                                    <span class="text-[9px] text-slate-400 font-mono"><%# Eval("FormattedTime") %></span>
-                                </div>
-                                <p class="text-slate-600 font-semibold leading-relaxed"><%# Eval("Description") %></p>
-                                <p class="text-[9px] text-slate-400 font-mono">Operator: <span class="text-slate-500 font-bold"><%# Eval("Username") %></span></p>
+                            <div class="flex justify-between items-center bg-slate-50 hover:bg-slate-100 rounded-lg p-2.5 transition-colors border border-slate-100">
+                                <span class="font-bold text-slate-700 text-xs"><%# Eval("VehicleType") %></span>
+                                <span class="bg-blue-100 text-blue-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full"><%# Eval("Cnt") %></span>
                             </div>
                         </ItemTemplate>
                         <FooterTemplate>
-                            <%# If(rptAuditFeed.Items.Count = 0, "<div class='py-8 text-center text-xs text-slate-400'>No recent operations logged.</div>", "") %>
+                            <%# If(rptVehicleTypes.Items.Count = 0, "<div class='py-8 text-center text-xs text-slate-400'>No vehicle types recorded.</div>", "") %>
                         </FooterTemplate>
                     </asp:Repeater>
                 </div>
             </div>
-        </div>
 
-        <!-- Super Admin Document Verification & Email Dispatch Hub -->
-        <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then %>
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- Document Verification Hub -->
-                <div class="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-                    <div>
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Refinery Document Verification Hub</h3>
-                        <p class="text-xs text-slate-500 mt-0.5">Super Admin clearance terminal for newly uploaded RC and compliance certificates</p>
+            <!-- Column 2: Department-wise Vehicles -->
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                <div class="border-b border-slate-100 pb-3">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Department-wise Vehicles</h3>
+                    <p class="text-[10px] text-slate-500 mt-0.5">Click a department to view its vehicle types</p>
+                </div>
+                <div class="space-y-2 max-h-[300px] overflow-y-auto">
+                    <asp:Repeater ID="rptDepartments" runat="server" OnItemCommand="rptDepartments_ItemCommand">
+                        <ItemTemplate>
+                            <div class="flex justify-between items-center bg-slate-50 hover:bg-slate-100 rounded-lg p-2.5 transition-colors border border-slate-100">
+                                <asp:LinkButton ID="lnkDept" runat="server" CommandName="SelectDept" CommandArgument='<%# Eval("Department") %>' CssClass="font-bold text-[#0054A6] hover:underline text-xs text-left">
+                                    <%# Eval("Department") %>
+                                </asp:LinkButton>
+                                <span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full"><%# Eval("Cnt") %></span>
+                            </div>
+                        </ItemTemplate>
+                        <FooterTemplate>
+                            <%# If(rptDepartments.Items.Count = 0, "<div class='py-8 text-center text-xs text-slate-400'>No departments recorded.</div>", "") %>
+                        </FooterTemplate>
+                    </asp:Repeater>
+                </div>
+            </div>
+
+            <!-- Column 3: Selected Department Breakdown -->
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                <asp:Panel ID="pnlDeptBreakdown" runat="server" Visible="false" class="space-y-4">
+                    <div class="border-b border-slate-100 pb-3">
+                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                            <asp:Label ID="lblBreakdownDeptName" runat="server" Text="Department"></asp:Label> Breakdown
+                        </h3>
+                        <p class="text-[10px] text-slate-500 mt-0.5">Vehicle types active in this division</p>
                     </div>
-
-                    <div class="overflow-x-auto">
-                        <asp:Repeater ID="rptVerificationDocs" runat="server" OnItemCommand="rptVerificationDocs_ItemCommand">
-                            <HeaderTemplate>
-                                <table class="w-full text-left border-collapse text-xs">
-                                    <thead>
-                                        <tr class="border-b border-slate-100 text-slate-400 uppercase font-bold tracking-wider">
-                                            <th class="py-3 px-2">Vehicle No</th>
-                                            <th class="py-3 px-2">Division</th>
-                                            <th class="py-3 px-2">Document Category</th>
-                                            <th class="py-3 px-2">Uploaded File</th>
-                                            <th class="py-3 px-2">Cleared Status</th>
-                                            <th class="py-3 px-2 text-right">Verification Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                            </HeaderTemplate>
+                    <div class="space-y-2 max-h-[300px] overflow-y-auto">
+                        <asp:Repeater ID="rptDeptBreakdown" runat="server">
                             <ItemTemplate>
-                                <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                                    <td class="py-3 px-2 font-bold font-mono text-slate-800"><%# Eval("VehicleNumber") %></td>
-                                    <td class="py-3 px-2 font-semibold text-slate-500"><%# Eval("DepartmentCode") %></td>
-                                    <td class="py-3 px-2 font-semibold text-slate-600"><%# Eval("LicenseType").ToString().Replace("_", " ") %></td>
-                                    <td class="py-3 px-2 font-medium">
-                                        <a href="<%# Eval("FilePath") %>" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1 text-blue-600 hover:underline">
-                                            <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                            <span class="max-w-[120px] truncate"><%# Eval("FileName") %></span>
-                                        </a>
-                                    </td>
-                                    <td class="py-3 px-2">
-                                        <span class="rounded px-2 py-0.5 font-bold uppercase text-[9px] <%# If(Convert.ToInt32(Eval("IsVerified")) = 1, "bg-emerald-100 text-emerald-700", "bg-amber-100 text-amber-700") %>">
-                                            <%# If(Convert.ToInt32(Eval("IsVerified")) = 1, "Verified", "Pending") %>
-                                        </span>
-                                    </td>
-                                    <td class="py-3 px-2 text-right">
-                                        <asp:LinkButton ID="btnToggleVerify" runat="server" CommandName="ToggleVerify" CommandArgument='<%# Eval("Id") & "|" & Eval("IsVerified") %>' CssClass='<%# If(Convert.ToInt32(Eval("IsVerified")) = 1, "rounded bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 font-bold transition-colors", "rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 font-bold transition-colors") %>'>
-                                            <%# If(Convert.ToInt32(Eval("IsVerified")) = 1, "Revoke", "Verify") %>
-                                        </asp:LinkButton>
-                                    </td>
-                                </tr>
+                                <div class="flex justify-between items-center bg-orange-50/50 hover:bg-orange-50 rounded-lg p-2.5 transition-colors border border-orange-100/50">
+                                    <span class="font-bold text-slate-700 text-xs"><%# Eval("VehicleType") %></span>
+                                    <span class="bg-orange-100 text-orange-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full"><%# Eval("Cnt") %></span>
+                                </div>
                             </ItemTemplate>
                             <FooterTemplate>
-                                    </tbody>
-                                </table>
-                                <%# If(rptVerificationDocs.Items.Count = 0, "<div class='py-12 text-center text-xs text-slate-400'>No documents pending verification.</div>", "") %>
+                                <%# If(rptDeptBreakdown.Items.Count = 0, "<div class='py-8 text-center text-xs text-slate-400'>No types available.</div>", "") %>
                             </FooterTemplate>
                         </asp:Repeater>
                     </div>
+                </asp:Panel>
+                <asp:Panel ID="pnlNoDeptBreakdown" runat="server" CssClass="flex flex-col items-center justify-center h-full text-center text-slate-400 py-12 border-2 border-dashed border-slate-150 rounded-xl">
+                    <svg class="h-8 w-8 opacity-20 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+                    </svg>
+                    <p class="text-[10px] font-semibold">Select a department on the left to review its vehicle breakdown profile.</p>
+                </asp:Panel>
+            </div>
+        </asp:Panel>
+
+        <!-- Dynamic Detail Panels -->
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <!-- Header section of active tab -->
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
+                <div>
+                    <h3 class="text-sm font-extrabold text-[#001F5B] uppercase tracking-wider">
+                        <asp:Label ID="lblActiveTabTitle" runat="server" Text="Registered Vehicles"></asp:Label>
+                    </h3>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                        <asp:Label ID="lblActiveTabDesc" runat="server" Text="Directory of all registered refinery vehicles"></asp:Label>
+                    </p>
                 </div>
 
-                <!-- Email & Alert Dispatcher Control Center -->
-                <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4 flex flex-col justify-between">
-                    <div>
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Email & Alert Dispatcher</h3>
-                        <p class="text-xs text-slate-500 mt-0.5">Clearance notifications and daily digests triggered manually for all departments</p>
-                    </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <!-- SuperAdmin Division Filter -->
+                    <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then %>
+                        <asp:DropDownList ID="ddlAlertDept" runat="server" AutoPostBack="true" OnSelectedIndexChanged="FilterAlerts" CssClass="rounded border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-600 outline-none">
+                        </asp:DropDownList>
+                    <% End If %>
 
-                    <div class="flex-1 space-y-4 flex flex-col justify-center my-4">
-                        <div class="space-y-3">
-                            <asp:LinkButton ID="btnDailyDigest" runat="server" OnClick="btnDailyDigest_Click" CssClass="w-full flex items-center justify-center gap-2 rounded bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 py-3 text-xs font-bold text-white shadow transition-all duration-200 focus:outline-none">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 19v-8.93a2 2 0 01.89-1.664l8-5.333a2 2 0 012.22 0l8 5.333A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75-4.5m0 0l-2.25-1.5a2 2 0 00-2.22 0l-2.25 1.5M12 14.25a8.25 8.25 0 00-8.25-8.25h16.5A8.25 8.25 0 0012 14.25z" />
-                                </svg>
-                                <span>Send Daily summary to all departments</span>
-                            </asp:LinkButton>
 
-                            <asp:LinkButton ID="btnComplianceScan" runat="server" OnClick="btnComplianceScan_Click" CssClass="w-full flex items-center justify-center gap-2 rounded bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 py-3 text-xs font-bold text-white shadow transition-all duration-200 focus:outline-none">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                                <span>Run Alert Scan & Send Emails</span>
-                            </asp:LinkButton>
-                        </div>
-
-                        <asp:Panel ID="pnlDispatcherStatus" runat="server" Visible="false" CssClass="rounded-lg border p-3 text-xs font-semibold">
-                            <asp:Label ID="lblDispatcherStatus" runat="server"></asp:Label>
-                        </asp:Panel>
-                    </div>
                 </div>
             </div>
-        <% End If %>
+
+            <!-- PANEL 1: Total Vehicles View -->
+            <asp:Panel ID="pnlTotalVehiclesView" runat="server" CssClass="overflow-x-auto">
+                <asp:Repeater ID="rptTotalVehicles" runat="server">
+                    <HeaderTemplate>
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="border-b border-slate-100 text-slate-400 uppercase font-bold tracking-wider">
+                                    <th class="py-3 px-2">Vehicle No</th>
+                                    <th class="py-3 px-2">Vehicle Type</th>
+                                    <th class="py-3 px-2">Allocated Department</th>
+                                    <th class="py-3 px-2">Status</th>
+                                    <th class="py-3 px-2 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    </HeaderTemplate>
+                    <ItemTemplate>
+                        <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                            <td class="py-3 px-2 font-bold font-mono text-slate-800"><%# Eval("VehicleNumber") %></td>
+                            <td class="py-3 px-2 font-semibold text-slate-500"><%# Eval("VehicleType") %></td>
+                            <td class="py-3 px-2 font-semibold text-slate-500"><%# Eval("DepartmentName") %></td>
+                            <td class="py-3 px-2">
+                                <span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase <%# GetBadgeCSS(Eval("OverallStatus")) %>">
+                                    <%# Eval("OverallStatus") %>
+                                </span>
+                            </td>
+                            <td class="py-3 px-2 text-right">
+                                <a href="Vehicles.aspx?id=<%# Eval("Id") %>" class="rounded bg-slate-100 text-slate-700 hover:bg-slate-200 px-3 py-1.5 font-bold transition-colors">
+                                    View Details
+                                </a>
+                            </td>
+                        </tr>
+                    </ItemTemplate>
+                    <FooterTemplate>
+                            </tbody>
+                        </table>
+                        <%# If(rptTotalVehicles.Items.Count = 0, "<div class='py-12 text-center text-xs text-slate-400'>No vehicles registered.</div>", "") %>
+                    </FooterTemplate>
+                </asp:Repeater>
+            </asp:Panel>
+
+            <!-- PANEL 2: Compliant Vehicles View -->
+            <asp:Panel ID="pnlCompliantVehiclesView" runat="server" CssClass="overflow-x-auto" Visible="false">
+                <asp:Repeater ID="rptCompliantVehicles" runat="server">
+                    <HeaderTemplate>
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="border-b border-slate-100 text-slate-400 uppercase font-bold tracking-wider">
+                                    <th class="py-3 px-2">Vehicle No</th>
+                                    <th class="py-3 px-2">Vehicle Type</th>
+                                    <th class="py-3 px-2">Allocated Department</th>
+                                    <th class="py-3 px-2">Status</th>
+                                    <th class="py-3 px-2 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    </HeaderTemplate>
+                    <ItemTemplate>
+                        <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                            <td class="py-3 px-2 font-bold font-mono text-slate-800"><%# Eval("VehicleNumber") %></td>
+                            <td class="py-3 px-2 font-semibold text-slate-500"><%# Eval("VehicleType") %></td>
+                            <td class="py-3 px-2 font-semibold text-slate-500"><%# Eval("DepartmentName") %></td>
+                            <td class="py-3 px-2">
+                                <span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase <%# GetBadgeCSS(Eval("OverallStatus")) %>">
+                                    <%# Eval("OverallStatus") %>
+                                </span>
+                            </td>
+                            <td class="py-3 px-2 text-right">
+                                <a href="Vehicles.aspx?id=<%# Eval("Id") %>" class="rounded bg-slate-100 text-slate-700 hover:bg-slate-200 px-3 py-1.5 font-bold transition-colors">
+                                    View Details
+                                </a>
+                            </td>
+                        </tr>
+                    </ItemTemplate>
+                    <FooterTemplate>
+                            </tbody>
+                        </table>
+                        <%# If(rptCompliantVehicles.Items.Count = 0, "<div class='py-12 text-center text-xs text-slate-400'>No compliant vehicles.</div>", "") %>
+                    </FooterTemplate>
+                </asp:Repeater>
+            </asp:Panel>
+
+            <!-- PANEL 3: Non-Compliant 3-column View -->
+            <asp:Panel ID="pnlNonCompliantView" runat="server" Visible="false">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- RC Column -->
+                    <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-4 space-y-3">
+                        <h4 class="text-xs font-bold text-orange-600 border-b border-orange-100 pb-2 flex items-center justify-between">
+                            <span>Registration Certificate (RC)</span>
+                            <span class="text-[9px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold">Going to Expire</span>
+                        </h4>
+                        <div class="space-y-3">
+                            <asp:Repeater ID="rptNonCompliantRC" runat="server">
+                                <ItemTemplate>
+                                    <div class="bg-white border border-slate-100 rounded-lg p-3 space-y-2 shadow-sm">
+                                        <div class="flex justify-between items-start">
+                                            <span class="font-bold text-slate-800 font-mono text-[11px]"><%# Eval("VehicleNumber") %></span>
+                                            <span class="text-[9px] text-slate-400 font-semibold"><%# Eval("DepartmentName") %></span>
+                                        </div>
+                                        <div class="flex justify-between items-center text-[10px] text-slate-500 pt-1">
+                                            <span>Expires: <b class="font-mono text-slate-600"><%# FmtDate(Eval("ExpiryDate")) %></b></span>
+                                            <a href="Expiry.aspx?renewId=<%# Eval("Id") %>" class="text-blue-600 hover:underline font-bold">Renew</a>
+                                        </div>
+                                    </div>
+                                </ItemTemplate>
+                                <FooterTemplate>
+                                    <%# If(rptNonCompliantRC.Items.Count = 0, "<div class='py-8 text-center text-xs text-slate-400'>No pending alerts.</div>", "") %>
+                                </FooterTemplate>
+                            </asp:Repeater>
+                        </div>
+                    </div>
+
+                    <!-- Insurance Column -->
+                    <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-4 space-y-3">
+                        <h4 class="text-xs font-bold text-orange-600 border-b border-orange-100 pb-2 flex items-center justify-between">
+                            <span>Vehicle Insurance</span>
+                            <span class="text-[9px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold">Going to Expire</span>
+                        </h4>
+                        <div class="space-y-3">
+                            <asp:Repeater ID="rptNonCompliantInsurance" runat="server">
+                                <ItemTemplate>
+                                    <div class="bg-white border border-slate-100 rounded-lg p-3 space-y-2 shadow-sm">
+                                        <div class="flex justify-between items-start">
+                                            <span class="font-bold text-slate-800 font-mono text-[11px]"><%# Eval("VehicleNumber") %></span>
+                                            <span class="text-[9px] text-slate-400 font-semibold"><%# Eval("DepartmentName") %></span>
+                                        </div>
+                                        <div class="flex justify-between items-center text-[10px] text-slate-500 pt-1">
+                                            <span>Expires: <b class="font-mono text-slate-600"><%# FmtDate(Eval("ExpiryDate")) %></b></span>
+                                            <a href="Expiry.aspx?renewId=<%# Eval("Id") %>" class="text-blue-600 hover:underline font-bold">Renew</a>
+                                        </div>
+                                    </div>
+                                </ItemTemplate>
+                                <FooterTemplate>
+                                    <%# If(rptNonCompliantInsurance.Items.Count = 0, "<div class='py-8 text-center text-xs text-slate-400'>No pending alerts.</div>", "") %>
+                                </FooterTemplate>
+                            </asp:Repeater>
+                        </div>
+                    </div>
+
+                    <!-- PUCC Column -->
+                    <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-4 space-y-3">
+                        <h4 class="text-xs font-bold text-orange-600 border-b border-orange-100 pb-2 flex items-center justify-between">
+                            <span>PUC Certificate</span>
+                            <span class="text-[9px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold">Going to Expire</span>
+                        </h4>
+                        <div class="space-y-3">
+                            <asp:Repeater ID="rptNonCompliantPUCC" runat="server">
+                                <ItemTemplate>
+                                    <div class="bg-white border border-slate-100 rounded-lg p-3 space-y-2 shadow-sm">
+                                        <div class="flex justify-between items-start">
+                                            <span class="font-bold text-slate-800 font-mono text-[11px]"><%# Eval("VehicleNumber") %></span>
+                                            <span class="text-[9px] text-slate-400 font-semibold"><%# Eval("DepartmentName") %></span>
+                                        </div>
+                                        <div class="flex justify-between items-center text-[10px] text-slate-500 pt-1">
+                                            <span>Expires: <b class="font-mono text-slate-600"><%# FmtDate(Eval("ExpiryDate")) %></b></span>
+                                            <a href="Expiry.aspx?renewId=<%# Eval("Id") %>" class="text-blue-600 hover:underline font-bold">Renew</a>
+                                        </div>
+                                    </div>
+                                </ItemTemplate>
+                                <FooterTemplate>
+                                    <%# If(rptNonCompliantPUCC.Items.Count = 0, "<div class='py-8 text-center text-xs text-slate-400'>No pending alerts.</div>", "") %>
+                                </FooterTemplate>
+                            </asp:Repeater>
+                        </div>
+                    </div>
+                </div>
+            </asp:Panel>
+
+            <!-- PANEL 4: Expired 3-column View -->
+            <asp:Panel ID="pnlExpiredView" runat="server" Visible="false">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- RC Column -->
+                    <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-4 space-y-3">
+                        <h4 class="text-xs font-bold text-red-600 border-b border-red-100 pb-2 flex items-center justify-between">
+                            <span>Registration Certificate (RC)</span>
+                            <span class="text-[9px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold">Expired</span>
+                        </h4>
+                        <div class="space-y-3">
+                            <asp:Repeater ID="rptExpiredRC" runat="server">
+                                <ItemTemplate>
+                                    <div class="bg-white border border-slate-100 rounded-lg p-3 space-y-2 shadow-sm">
+                                        <div class="flex justify-between items-start">
+                                            <span class="font-bold text-slate-800 font-mono text-[11px]"><%# Eval("VehicleNumber") %></span>
+                                            <span class="text-[9px] text-slate-400 font-semibold"><%# Eval("DepartmentName") %></span>
+                                        </div>
+                                        <div class="flex justify-between items-center text-[10px] text-slate-500 pt-1">
+                                            <span>Expired: <b class="font-mono text-red-500"><%# FmtDate(Eval("ExpiryDate")) %></b></span>
+                                            <a href="Expiry.aspx?renewId=<%# Eval("Id") %>" class="text-blue-600 hover:underline font-bold">Renew</a>
+                                        </div>
+                                    </div>
+                                </ItemTemplate>
+                                <FooterTemplate>
+                                    <%# If(rptExpiredRC.Items.Count = 0, "<div class='py-8 text-center text-xs text-slate-400'>No expired certificates.</div>", "") %>
+                                </FooterTemplate>
+                            </asp:Repeater>
+                        </div>
+                    </div>
+
+                    <!-- Insurance Column -->
+                    <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-4 space-y-3">
+                        <h4 class="text-xs font-bold text-red-600 border-b border-red-100 pb-2 flex items-center justify-between">
+                            <span>Vehicle Insurance</span>
+                            <span class="text-[9px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold">Expired</span>
+                        </h4>
+                        <div class="space-y-3">
+                            <asp:Repeater ID="rptExpiredInsurance" runat="server">
+                                <ItemTemplate>
+                                    <div class="bg-white border border-slate-100 rounded-lg p-3 space-y-2 shadow-sm">
+                                        <div class="flex justify-between items-start">
+                                            <span class="font-bold text-slate-800 font-mono text-[11px]"><%# Eval("VehicleNumber") %></span>
+                                            <span class="text-[9px] text-slate-400 font-semibold"><%# Eval("DepartmentName") %></span>
+                                        </div>
+                                        <div class="flex justify-between items-center text-[10px] text-slate-500 pt-1">
+                                            <span>Expired: <b class="font-mono text-red-500"><%# FmtDate(Eval("ExpiryDate")) %></b></span>
+                                            <a href="Expiry.aspx?renewId=<%# Eval("Id") %>" class="text-blue-600 hover:underline font-bold">Renew</a>
+                                        </div>
+                                    </div>
+                                </ItemTemplate>
+                                <FooterTemplate>
+                                    <%# If(rptExpiredInsurance.Items.Count = 0, "<div class='py-8 text-center text-xs text-slate-400'>No expired certificates.</div>", "") %>
+                                </FooterTemplate>
+                            </asp:Repeater>
+                        </div>
+                    </div>
+
+                    <!-- PUCC Column -->
+                    <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-4 space-y-3">
+                        <h4 class="text-xs font-bold text-red-600 border-b border-red-100 pb-2 flex items-center justify-between">
+                            <span>PUC Certificate</span>
+                            <span class="text-[9px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold">Expired</span>
+                        </h4>
+                        <div class="space-y-3">
+                            <asp:Repeater ID="rptExpiredPUCC" runat="server">
+                                <ItemTemplate>
+                                    <div class="bg-white border border-slate-100 rounded-lg p-3 space-y-2 shadow-sm">
+                                        <div class="flex justify-between items-start">
+                                            <span class="font-bold text-slate-800 font-mono text-[11px]"><%# Eval("VehicleNumber") %></span>
+                                            <span class="text-[9px] text-slate-400 font-semibold"><%# Eval("DepartmentName") %></span>
+                                        </div>
+                                        <div class="flex justify-between items-center text-[10px] text-slate-500 pt-1">
+                                            <span>Expired: <b class="font-mono text-red-500"><%# FmtDate(Eval("ExpiryDate")) %></b></span>
+                                            <a href="Expiry.aspx?renewId=<%# Eval("Id") %>" class="text-blue-600 hover:underline font-bold">Renew</a>
+                                        </div>
+                                    </div>
+                                </ItemTemplate>
+                                <FooterTemplate>
+                                    <%# If(rptExpiredPUCC.Items.Count = 0, "<div class='py-8 text-center text-xs text-slate-400'>No expired certificates.</div>", "") %>
+                                </FooterTemplate>
+                            </asp:Repeater>
+                        </div>
+                    </div>
+                </div>
+            </asp:Panel>
+        </div>
+
+        <!-- Super Admin Document Verification Hub (Full Width) -->
+        <asp:Panel ID="pnlVerificationHub" runat="server" CssClass="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4" Visible="false">
+            <div>
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Refinery Document Verification Hub</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Super Admin clearance terminal for newly uploaded RC and compliance certificates</p>
+            </div>
+
+            <div class="overflow-x-auto">
+                <asp:Repeater ID="rptVerificationDocs" runat="server" OnItemCommand="rptVerificationDocs_ItemCommand">
+                    <HeaderTemplate>
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="border-b border-slate-100 text-slate-400 uppercase font-bold tracking-wider">
+                                    <th class="py-3 px-2">Vehicle No</th>
+                                    <th class="py-3 px-2">Department</th>
+                                    <th class="py-3 px-2">Document Category</th>
+                                    <th class="py-3 px-2">Uploaded File</th>
+                                    <th class="py-3 px-2">Cleared Status</th>
+                                    <th class="py-3 px-2 text-right">Verification Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    </HeaderTemplate>
+                    <ItemTemplate>
+                        <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                            <td class="py-3 px-2 font-bold font-mono text-slate-800"><%# Eval("VehicleNumber") %></td>
+                            <td class="py-3 px-2 font-semibold text-slate-500"><%# Eval("DepartmentCode") %></td>
+                            <td class="py-3 px-2 font-semibold text-slate-600"><%# Eval("LicenseType").ToString().Replace("_", " ") %></td>
+                            <td class="py-3 px-2 font-medium">
+                                <a href="<%# Eval("FilePath") %>" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1 text-blue-600 hover:underline font-bold">
+                                    <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                    <span class="max-w-[120px] truncate"><%# Eval("FileName") %></span>
+                                </a>
+                            </td>
+                            <td class="py-3 px-2">
+                                <span class="rounded px-2 py-0.5 font-bold uppercase text-[9px] <%# If(Convert.ToInt32(Eval("IsVerified")) = 1, "bg-emerald-100 text-emerald-700", "bg-amber-100 text-amber-700") %>">
+                                    <%# If(Convert.ToInt32(Eval("IsVerified")) = 1, "Verified", "Pending") %>
+                                </span>
+                            </td>
+                            <td class="py-3 px-2 text-right">
+                                <asp:LinkButton ID="btnToggleVerify" runat="server" CommandName="ToggleVerify" CommandArgument='<%# Eval("Id") & "|" & Eval("IsVerified") %>' CssClass='<%# If(Convert.ToInt32(Eval("IsVerified")) = 1, "rounded bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 font-bold transition-colors focus:outline-none", "rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 font-bold transition-colors focus:outline-none") %>'>
+                                    <%# If(Convert.ToInt32(Eval("IsVerified")) = 1, "Revoke", "Verify") %>
+                                </asp:LinkButton>
+                            </td>
+                        </tr>
+                    </ItemTemplate>
+                    <FooterTemplate>
+                            </tbody>
+                        </table>
+                        <%# If(rptVerificationDocs.Items.Count = 0, "<div class='py-12 text-center text-xs text-slate-400'>No documents pending verification.</div>", "") %>
+                    </FooterTemplate>
+                </asp:Repeater>
+            </div>
+        </asp:Panel>
     </div>
 
     <div id="chartDataContainer" data-charts='<%= ChartDataJson %>' style="display: none;"></div>
 
     <!-- Chart Configuration Script -->
     <script>
-        window.charts = {
-            doughnutChart: null,
-            barChart: null,
-
-            createDoughnut: function (canvasId, data, labels) {
-                var canvas = document.getElementById(canvasId);
-                if (!canvas) return;
-
-                if (this.doughnutChart) {
-                    this.doughnutChart.destroy();
-                }
-
-                var ctx = canvas.getContext('2d');
-                this.doughnutChart = new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            data: data,
-                            backgroundColor: ['#10B981', '#F59E0B', '#F97316', '#EF4444'], // green, yellow, orange, red
-                            borderWidth: 1,
-                            borderColor: '#ffffff'
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                                labels: {
-                                    font: { size: 10, weight: 'bold' },
-                                    boxWidth: 12
-                                }
-                            }
-                        }
-                    }
-                });
-            },
-
-            createBar: function (canvasId, data, labels) {
-                var canvas = document.getElementById(canvasId);
-                if (!canvas) return;
-
-                if (this.barChart) {
-                    this.barChart.destroy();
-                }
-
-                var ctx = canvas.getContext('2d');
-                this.barChart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Compliance Index %',
-                            data: data,
-                            backgroundColor: '#0054A6',
-                            hoverBackgroundColor: '#F47920',
-                            borderRadius: 4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false }
-                        },
-                        scales: {
-                            y: {
-                                min: 0,
-                                max: 100,
-                                ticks: { font: { size: 9, weight: 'bold' } }
-                            },
-                            x: {
-                                ticks: { font: { size: 9, weight: 'bold' } }
-                            }
-                        }
-                    }
-                });
-            }
-        };
-
         document.addEventListener("DOMContentLoaded", function () {
             var dataContainer = document.getElementById("chartDataContainer");
             var chartData = null;
@@ -399,11 +522,64 @@
                     console.error("Error parsing chart data: ", e);
                 }
             }
-            if (chartData && chartData.StatusData) {
-                window.charts.createDoughnut("statusChart", chartData.StatusData, ["Compliant", "Warning", "Critical", "Expired"]);
-            }
-            if (chartData && chartData.DeptNames && chartData.DeptScores) {
-                window.charts.createBar("deptChart", chartData.DeptScores, chartData.DeptNames);
+            if (chartData && chartData.DeptNames && chartData.DeptCounts) {
+                var ctx = document.getElementById('deptVehicleChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: chartData.DeptNames,
+                        datasets: [{
+                            data: chartData.DeptCounts,
+                            backgroundColor: [
+                                '#0054A6', '#F47920', '#10B981', '#EF4444', '#8B5CF6', '#EC4899', '#F59E0B', '#3B82F6'
+                            ],
+                            borderWidth: 1,
+                            borderColor: '#ffffff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: {
+                                    font: { size: 11, weight: 'bold' },
+                                    generateLabels: function(chart) {
+                                        const data = chart.data;
+                                        if (data.labels.length && data.datasets.length) {
+                                            return data.labels.map((label, i) => {
+                                                const count = data.datasets[0].data[i];
+                                                return {
+                                                    text: label + ' (' + count + ')',
+                                                    fillStyle: data.datasets[0].backgroundColor[i],
+                                                    strokeStyle: data.datasets[0].borderColor,
+                                                    lineWidth: data.datasets[0].borderWidth,
+                                                    index: i
+                                                };
+                                            });
+                                        }
+                                        return [];
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed !== undefined) {
+                                            label += context.parsed + ' vehicles';
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
             }
         });
     </script>

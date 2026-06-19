@@ -126,11 +126,7 @@ Public Class VerifyEmail
     End Sub
 
     Private Sub RedirectToPortal()
-        If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "GATEMAN" Then
-            Response.Redirect("~/Gate.aspx", False)
-        Else
-            Response.Redirect("~/Default.aspx", False)
-        End If
+        Response.Redirect("~/Default.aspx", False)
         HttpContext.Current.ApplicationInstance.CompleteRequest()
     End Sub
 

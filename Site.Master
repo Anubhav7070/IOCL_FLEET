@@ -4,7 +4,7 @@
 <head runat="server">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IOCL Panipat Refinery - Fleet Compliance Portal</title>
+    <title>IOCL Panipat Refinery - Company Vehicle Management Portal</title>
     <!-- Google Fonts: Inter/Outfit -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -67,6 +67,15 @@
                         </a>
                     </div>
 
+                    <!-- Visit Counter -->
+                    <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-600 shrink-0">
+                        <svg class="h-3.5 w-3.5 text-slate-450 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        <span>Visits: <asp:Label ID="lblVisitCount" runat="server" Text="0"></asp:Label></span>
+                    </div>
+
                     <div class="hidden md:block h-6 w-px bg-gray-300"></div>
 
                     <!-- Notifications Dropdown -->
@@ -114,24 +123,17 @@
             <div class="flex h-[44px] w-full items-center justify-between px-6 bg-[#001F5B]">
                 <nav class="flex items-center h-full">
                     <% If Session("EmployeeId") IsNot Nothing Then %>
-                        <% If Session("Role").ToString() = "GATEMAN" Then %>
-                            <a href="Gate.aspx" class="flex items-center gap-1.5 h-full px-4 text-[12.5px] font-semibold transition-colors border-b-2 text-white <%= GetActiveCSS("Gate.aspx") %>">
-                                <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.952 11.952 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                                <span>Gate Entry</span>
+                            <a href="Default.aspx" class="flex items-center justify-center h-full px-4 text-white transition-colors border-b-2 <%= GetActiveCSS("Default.aspx") %>" title="Home">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                                </svg>
                             </a>
-                        <% Else %>
-                            <a href="Default.aspx" class="flex items-center gap-1.5 h-full px-4 text-[12.5px] font-semibold transition-colors border-b-2 text-white <%= GetActiveCSS("Default.aspx") %>">
-                                <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" /></svg>
-                                <span>Dashboard</span>
+                            <% If Session("Role") IsNot Nothing AndAlso (Session("Role").ToString() = "SuperAdmin" OrElse Session("Role").ToString() = "DEPT_ADMIN") Then %>
+                            <a href="Allocation.aspx" class="flex items-center gap-1.5 h-full px-4 text-[12.5px] font-semibold transition-colors border-b-2 text-white <%= GetActiveCSS("Allocation.aspx") %>">
+                                <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                                <span>Vehicle Allocation</span>
                             </a>
-                            <a href="Vehicles.aspx" class="flex items-center gap-1.5 h-full px-4 text-[12.5px] font-semibold transition-colors border-b-2 text-white <%= GetActiveCSS("Vehicles.aspx") %>">
-                                <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10M21 16V10a1 1 0 00-1-1h-7m8 7H3" /></svg>
-                                <span>Vehicles</span>
-                            </a>
-                            <a href="Expiry.aspx" class="flex items-center gap-1.5 h-full px-4 text-[12.5px] font-semibold transition-colors border-b-2 text-white <%= GetActiveCSS("Expiry.aspx") %>">
-                                <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                <span>Expiry Management</span>
-                            </a>
+                            <% End If %>
                             <a href="Renewals.aspx" class="flex items-center gap-1.5 h-full px-4 text-[12.5px] font-semibold transition-colors border-b-2 text-white <%= GetActiveCSS("Renewals.aspx") %>">
                                 <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                 <span>Renewal Logs</span>
@@ -153,7 +155,6 @@
                                     <span>Audit Trail</span>
                                 </a>
                             <% End If %>
-                        <% End If %>
                     <% End If %>
                 </nav>
 
@@ -177,7 +178,7 @@
         <!-- Footer -->
         <footer class="flex items-center justify-between px-8 py-3 text-[10px] font-semibold text-white bg-[#001F5B]">
             <span>© <%= DateTime.Now.Year %> Indian Oil Corporation Ltd. All rights reserved.</span>
-            <span class="text-[#F47920]">Fleet Compliance & Validity Monitor</span>
+            <span class="text-[#F47920]">Company Vehicle Management Portal</span>
         </footer>
     </form>
 

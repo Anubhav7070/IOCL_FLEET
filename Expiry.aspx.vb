@@ -46,7 +46,7 @@ Public Class ExpiryPage
         Dim role As String = Session("Role").ToString()
         Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
 
-        Dim sql As String = "SELECT r.Id, r.VehicleId, r.LicenseType, r.ExpiryDate, r.Status, v.VehicleNumber, v.Department As DeptName FROM ComplianceRecords r INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE r.Status IN ('EXPIRED', 'WARNING', 'MEDIUM_CRITICAL', 'HIGH_CRITICAL')"
+        Dim sql As String = "SELECT r.Id, r.VehicleId, r.LicenseType, r.ExpiryDate, r.Status, v.VehicleNumber, v.Department As DeptName FROM ComplianceRecords r INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE r.Status IN ('Expired', 'Non-Compliant') AND (v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL)"
 
         Dim whereClauses As New List(Of String)()
         Dim parameters As New List(Of SQLiteParameter)()
@@ -78,12 +78,8 @@ Public Class ExpiryPage
 
         ' Apply severity filter
         If Not String.IsNullOrEmpty(ddlSeverityFilter.SelectedValue) Then
-            If ddlSeverityFilter.SelectedValue = "CRITICAL" Then
-                whereClauses.Add("r.Status IN ('HIGH_CRITICAL', 'MEDIUM_CRITICAL')")
-            Else
-                whereClauses.Add("r.Status = @Status")
-                parameters.Add(New SQLiteParameter("@Status", ddlSeverityFilter.SelectedValue))
-            End If
+            whereClauses.Add("r.Status = @Status")
+            parameters.Add(New SQLiteParameter("@Status", ddlSeverityFilter.SelectedValue))
         End If
 
         If whereClauses.Count > 0 Then
@@ -117,12 +113,7 @@ Public Class ExpiryPage
 
         If e.CommandName = "SelectAlert" Then
             Dim recordId As Integer = Convert.ToInt32(e.CommandArgument)
-            ' SuperAdmin cannot renew â€” show notification panel instead
-            If role = "SuperAdmin" Then
-                LoadNotifyPanel(recordId)
-            Else
-                LoadRenewalForm(recordId)
-            End If
+            LoadRenewalForm(recordId)
         ElseIf e.CommandName = "SendNotification" Then
             ' SuperAdmin sends a renewal reminder notification to the vehicle owner
             Dim recordId As Integer = Convert.ToInt32(e.CommandArgument)
@@ -230,6 +221,15 @@ Public Class ExpiryPage
         txtExpiryDate.Text = If(row("ExpiryDate") Is DBNull.Value, "", row("ExpiryDate").ToString())
         txtRemarks.Text = ""
 
+        txtDocNumber.Enabled = True
+        txtAuthority.Enabled = True
+        txtIssueDate.Enabled = True
+        txtExpiryDate.Enabled = True
+        txtRemarks.Enabled = True
+        fileScan.Visible = True
+        btnSubmitRenew.Visible = True
+        btnSendNotify.Visible = False
+
         pnlRenewForm.Visible = True
         pnlNoForm.Visible = False
     End Sub
@@ -243,11 +243,7 @@ Public Class ExpiryPage
 
         If dt.Rows.Count > 0 Then
             Dim recordId As Integer = Convert.ToInt32(dt.Rows(0)("Id"))
-            If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then
-                LoadNotifyPanel(recordId)
-            Else
-                LoadRenewalForm(recordId)
-            End If
+            LoadRenewalForm(recordId)
         End If
     End Sub
 
@@ -351,11 +347,6 @@ Public Class ExpiryPage
     End Sub
 
     Protected Sub btnSubmitRenew_Click(ByVal sender As Object, ByVal e As EventArgs)
-        ' SuperAdmin is NOT allowed to renew documents
-        If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then
-            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('SuperAdmin cannot renew documents. Please notify the responsible employee to submit the renewal.');", True)
-            Return
-        End If
 
         Dim recordId As Integer = Convert.ToInt32(hdnRecordId.Value)
         Dim vehicleId As Integer = Convert.ToInt32(hdnVehicleId.Value)
@@ -457,7 +448,7 @@ Public Class ExpiryPage
             End If
 
             ' Update compliance record details
-            Dim calculatedStatus As String = Compliance.CalculateStatus(expiryDate)
+            Dim calculatedStatus As String = Compliance.CalculateStatus(txtDocType.Text, expiryDate)
             Dim updateRecordSql As String = "UPDATE ComplianceRecords SET LicenseNumber = @Number, IssuingAuthority = @Auth, IssueDate = @IssueDate, ExpiryDate = @ExpiryDate, Status = @Status, DocumentId = @DocId, IsVerified = 0, VerifiedBy = NULL, LastUpdatedBy = @User, LastUpdatedTimestamp = datetime('now'), UpdatedAt = datetime('now') WHERE Id = @Id"
 
             Database.ExecuteNonQuery(updateRecordSql,
@@ -519,19 +510,15 @@ Public Class ExpiryPage
     Public Function GetAlertBadgeClass(ByVal statusObj As Object) As String
         Dim status As String = statusObj.ToString()
         Select Case status
-            Case "WARNING"
-                Return "bg-yellow-50 text-yellow-750 border border-yellow-250"
-            Case "EXPIRED"
+            Case "Expired"
                 Return "bg-red-50 text-red-700 border border-red-200"
-            Case Else
+            Case "Non-Compliant"
                 Return "bg-orange-50 text-orange-700 border border-orange-200"
+            Case Else
+                Return "bg-emerald-50 text-emerald-700 border border-emerald-200"
         End Select
     End Function
 
-    Public Function FmtDate(ByVal dateObj As Object) As String
-        If dateObj Is Nothing OrElse Convert.IsDBNull(dateObj) OrElse String.IsNullOrEmpty(dateObj.ToString()) Then
-            Return "PENDING"
-        End If
     Public Function FmtDate(ByVal dateObj As Object) As String
         If dateObj Is Nothing OrElse Convert.IsDBNull(dateObj) OrElse String.IsNullOrEmpty(dateObj.ToString()) Then
             Return "PENDING"
@@ -561,10 +548,6 @@ Public Class ExpiryPage
 
     ' ─── Bulk Renewal Handler ──────────────────────────────────────────────────
     Protected Sub btnBulkRenew_Click(ByVal sender As Object, ByVal e As EventArgs)
-        If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then
-            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('SuperAdmin cannot renew documents directly.');", True)
-            Return
-        End If
 
         Dim bulkIdsRaw As String = Request.Form("hdnBulkSelectedIds")
         If String.IsNullOrEmpty(bulkIdsRaw) Then
@@ -592,12 +575,13 @@ Public Class ExpiryPage
 
         ' Validate that every selected record has required per-document fields filled
         For Each recordId As Integer In selectedIds
+            Dim docNo As String = Request.Form("docNumber_" & recordId)
             Dim auth As String = Request.Form("authority_" & recordId)
             Dim issD As String = Request.Form("issueDate_" & recordId)
             Dim expD As String = Request.Form("expiryDate_" & recordId)
-            If String.IsNullOrEmpty(auth) OrElse String.IsNullOrEmpty(issD) OrElse String.IsNullOrEmpty(expD) Then
+            If String.IsNullOrEmpty(docNo) OrElse String.IsNullOrEmpty(auth) OrElse String.IsNullOrEmpty(issD) OrElse String.IsNullOrEmpty(expD) Then
                 ClientScript.RegisterStartupScript(Me.GetType(), "Alert",
-                    "alert('Please fill Issuing Authority, Issue Date and Expiry Date for every document (record #" & recordId & ").');", True)
+                    "alert('Please fill Document Number, Issuing Authority, Issue Date and Expiry Date for every document (record #" & recordId & ").');", True)
                 Return
             End If
             Dim issDt, expDt As DateTime
@@ -611,27 +595,34 @@ Public Class ExpiryPage
                     "alert('Expiry date must be after issue date for document record #" & recordId & ".');", True)
                 Return
             End If
+
+            Dim uploadedFile As System.Web.HttpPostedFile = Request.Files("docFile_" & recordId)
+            If uploadedFile Is Nothing OrElse uploadedFile.ContentLength = 0 Then
+                ClientScript.RegisterStartupScript(Me.GetType(), "Alert",
+                    "alert('Please upload a PDF document copy for document record #" & recordId & ".');", True)
+                Return
+            End If
+            Dim fileExt As String = System.IO.Path.GetExtension(uploadedFile.FileName).ToLower()
+            If fileExt <> ".pdf" Then
+                ClientScript.RegisterStartupScript(Me.GetType(), "Alert",
+                    "alert('Only PDF files are accepted. Please check the file for document record #" & recordId & ".');", True)
+                Return
+            End If
         Next
 
         Dim renewedCount As Integer = 0
 
         For Each recordId As Integer In selectedIds
             Try
+                Dim docNumber As String     = Request.Form("docNumber_" & recordId).Trim()
                 Dim authority As String     = Request.Form("authority_" & recordId)
                 Dim issueDateStr As String  = Request.Form("issueDate_" & recordId)
                 Dim expiryDateStr As String = Request.Form("expiryDate_" & recordId)
-                Dim calculatedStatus As String = Compliance.CalculateStatus(expiryDateStr)
 
                 ' Handle individual PDF upload for this record
                 Dim newDocId As Object = DBNull.Value
                 Dim uploadedFile As System.Web.HttpPostedFile = Request.Files("docFile_" & recordId)
                 If uploadedFile IsNot Nothing AndAlso uploadedFile.ContentLength > 0 Then
-                    Dim fileExt As String = System.IO.Path.GetExtension(uploadedFile.FileName).ToLower()
-                    If fileExt <> ".pdf" Then
-                        ClientScript.RegisterStartupScript(Me.GetType(), "Alert",
-                            "alert('Only PDF files are accepted. Please fix the upload for document #" & recordId & ".');", True)
-                        Return
-                    End If
                     Dim uploadFolder As String = Server.MapPath("~/uploads")
                     If Not System.IO.Directory.Exists(uploadFolder) Then System.IO.Directory.CreateDirectory(uploadFolder)
                     Dim ts As String = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()
@@ -661,11 +652,14 @@ Public Class ExpiryPage
                 Dim oldExpiry As String = row("ExpiryDate").ToString()
                 Dim oldDocId As Object = If(row("DocumentId") Is DBNull.Value, CType(DBNull.Value, Object), row("DocumentId"))
 
-                ' Preserve existing document if no new file uploaded for this record
+                ' Preserve existing document if no new file uploaded for this record (though validator guarantees it is)
                 If newDocId Is DBNull.Value Then newDocId = oldDocId
 
+                Dim calculatedStatus As String = Compliance.CalculateStatus(licType, expiryDateStr)
+
                 Database.ExecuteNonQuery(
-                    "UPDATE ComplianceRecords SET IssuingAuthority = @Auth, IssueDate = @IssueDate, ExpiryDate = @ExpiryDate, Status = @Status, DocumentId = @DocId, IsVerified = 0, VerifiedBy = NULL, LastUpdatedBy = @User, LastUpdatedTimestamp = datetime('now'), UpdatedAt = datetime('now') WHERE Id = @Id",
+                    "UPDATE ComplianceRecords SET LicenseNumber = @Number, IssuingAuthority = @Auth, IssueDate = @IssueDate, ExpiryDate = @ExpiryDate, Status = @Status, DocumentId = @DocId, IsVerified = 0, VerifiedBy = NULL, LastUpdatedBy = @User, LastUpdatedTimestamp = datetime('now'), UpdatedAt = datetime('now') WHERE Id = @Id",
+                    New SQLiteParameter("@Number", docNumber),
                     New SQLiteParameter("@Auth", authority),
                     New SQLiteParameter("@IssueDate", issueDateStr),
                     New SQLiteParameter("@ExpiryDate", expiryDateStr),

@@ -6,16 +6,6 @@
 
 <asp:Content ID="Content3" ContentPlaceHolderID="MainContent" runat="server">
     <div class="space-y-6">
-        <!-- Title and Action Bar -->
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 rounded-xl bg-slate-900 border border-slate-800 text-white p-6 shadow-md shadow-slate-900/10">
-            <div>
-                <h2 class="text-xl font-bold tracking-wide uppercase">Expiries & Renewals Console</h2>
-                <p class="text-xs text-slate-400 mt-1">
-                    Track soon-to-expire certifications, submit renewal logs, and clear windshield gate passes.
-                </p>
-            </div>
-        </div>
-
         <!-- Filters Control Panel -->
         <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col md:flex-row md:items-center gap-4">
             <div class="relative flex-1">
@@ -31,9 +21,8 @@
 
                 <asp:DropDownList ID="ddlSeverityFilter" runat="server" AutoPostBack="true" OnSelectedIndexChanged="FilterAlerts" CssClass="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 outline-none focus:border-blue-500 transition-all">
                     <asp:ListItem Text="All Flagged Alerts" Value=""></asp:ListItem>
-                    <asp:ListItem Text="Expired Only" Value="EXPIRED"></asp:ListItem>
-                    <asp:ListItem Text="Critical Expiries" Value="CRITICAL"></asp:ListItem>
-                    <asp:ListItem Text="Warnings" Value="WARNING"></asp:ListItem>
+                    <asp:ListItem Text="Expired Only" Value="Expired"></asp:ListItem>
+                    <asp:ListItem Text="Non-Compliant Only" Value="Non-Compliant"></asp:ListItem>
                 </asp:DropDownList>
                 
                 <asp:LinkButton ID="btnClearFilters" runat="server" OnClick="btnResetFilter_Click" CssClass="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2">Reset</asp:LinkButton>
@@ -54,9 +43,9 @@
                             <table class="w-full text-left border-collapse text-xs">
                                 <thead>
                                     <tr class="border-b border-slate-100 text-slate-400 uppercase font-bold tracking-wider">
-                                        <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() <> "SuperAdmin" Then %>
-                                        <th class="py-3 px-2 w-8"><input type="checkbox" id="chkSelectAll" onclick="toggleAllAlerts(this)" class="rounded border-slate-300" title="Select All" /></th>
-                                        <% End If %>
+                                         <% If Session("Role") IsNot Nothing Then %>
+                                         <th class="py-3 px-2 w-8"><input type="checkbox" id="chkSelectAll" onclick="toggleAllAlerts(this)" class="rounded border-slate-300" title="Select All" /></th>
+                                         <% End If %>
                                         <th class="py-3 px-2">Vehicle No</th>
                                         <th class="py-3 px-2">Division</th>
                                         <th class="py-3 px-2">Document Type</th>
@@ -70,15 +59,15 @@
                         </HeaderTemplate>
                         <ItemTemplate>
                             <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                                <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() <> "SuperAdmin" Then %>
-                                <td class="py-3 px-2">
-                                    <input type="checkbox" class="alertCheckbox rounded border-slate-300"
-                                           value='<%# Eval("Id") %>'
-                                           data-vehicle='<%# Eval("VehicleNumber") %>'
-                                           data-type='<%# Eval("LicenseType").ToString().Replace("_", " ") %>'
-                                           onclick="updateBulkBar()" />
-                                </td>
-                                <% End If %>
+                                 <% If Session("Role") IsNot Nothing Then %>
+                                 <td class="py-3 px-2">
+                                     <input type="checkbox" class="alertCheckbox rounded border-slate-300"
+                                            value='<%# Eval("Id") %>'
+                                            data-vehicle='<%# Eval("VehicleNumber") %>'
+                                            data-type='<%# Eval("LicenseType").ToString().Replace("_", " ") %>'
+                                            onclick="updateBulkBar()" />
+                                 </td>
+                                 <% End If %>
                                 <td class="py-3 px-2 font-bold font-mono text-slate-800"><%# Eval("VehicleNumber") %></td>
                                 <td class="py-3 px-2 font-semibold text-slate-500"><%# Eval("DeptName") %></td>
                                 <td class="py-3 px-2 font-semibold text-slate-600"><%# Eval("LicenseType").ToString().Replace("_", " ") %></td>
@@ -90,15 +79,20 @@
                                 </td>
                                 <td class="py-3 px-2 font-medium text-slate-600"><%# GetDaysRemainingText(Eval("ExpiryDate")) %></td>
                                 <td class="py-3 px-2 text-right">
-                                    <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then %>
-                                        <asp:LinkButton ID="btnProcess" runat="server" CommandName="SelectAlert" CommandArgument='<%# Eval("Id") %>' CssClass="rounded bg-orange-50 hover:bg-orange-100 text-orange-600 px-2.5 py-1.5 font-bold transition-all focus:outline-none border border-orange-200">
-                                            Notify Employee
-                                        </asp:LinkButton>
-                                    <% Else %>
-                                        <asp:LinkButton ID="btnProcess2" runat="server" CommandName="SelectAlert" CommandArgument='<%# Eval("Id") %>' CssClass="rounded bg-blue-50 hover:bg-blue-100 text-[#0054A6] px-2.5 py-1.5 font-bold transition-all focus:outline-none">
-                                            Renew
-                                        </asp:LinkButton>
-                                    <% End If %>
+                                     <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then %>
+                                         <div class="flex gap-2 justify-end">
+                                             <asp:LinkButton ID="btnProcessSuper" runat="server" CommandName="SelectAlert" CommandArgument='<%# Eval("Id") %>' CssClass="rounded bg-blue-50 hover:bg-blue-100 text-[#0054A6] px-2.5 py-1.5 font-bold transition-all focus:outline-none">
+                                                 Renew
+                                             </asp:LinkButton>
+                                             <asp:LinkButton ID="btnNotify" runat="server" CommandName="SendNotification" CommandArgument='<%# Eval("Id") %>' CssClass="rounded bg-orange-50 hover:bg-orange-100 text-orange-600 px-2.5 py-1.5 font-bold transition-all focus:outline-none border border-orange-200">
+                                                 Notify
+                                             </asp:LinkButton>
+                                         </div>
+                                     <% Else %>
+                                         <asp:LinkButton ID="btnProcess2" runat="server" CommandName="SelectAlert" CommandArgument='<%# Eval("Id") %>' CssClass="rounded bg-blue-50 hover:bg-blue-100 text-[#0054A6] px-2.5 py-1.5 font-bold transition-all focus:outline-none">
+                                             Renew
+                                         </asp:LinkButton>
+                                     <% End If %>
                                 </td>
                             </tr>
                         </ItemTemplate>
@@ -110,15 +104,15 @@
                     </asp:Repeater>
                 </div>
 
-                <%-- Bulk Action Bar (shown when checkboxes are selected, non-SuperAdmin only) --%>
-                <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() <> "SuperAdmin" Then %>
-                <div id="bulkActionBar" class="hidden mt-4 flex items-center justify-between rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
-                    <span id="bulkCountLabel" class="text-xs font-bold text-[#0054A6]">0 documents selected</span>
-                    <button type="button" onclick="openBulkRenewPanel()" class="rounded bg-[#0054A6] hover:bg-blue-700 text-white px-4 py-2 text-xs font-bold transition-all focus:outline-none">
-                        Bulk Renew Selected
-                    </button>
-                </div>
-                <% End If %>
+                <%-- Bulk Action Bar (shown when checkboxes are selected) --%>
+                 <% If Session("Role") IsNot Nothing Then %>
+                 <div id="bulkActionBar" class="hidden mt-4 flex items-center justify-between rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
+                     <span id="bulkCountLabel" class="text-xs font-bold text-[#0054A6]">0 documents selected</span>
+                     <button type="button" onclick="openBulkRenewPanel()" class="rounded bg-[#0054A6] hover:bg-blue-700 text-white px-4 py-2 text-xs font-bold transition-all focus:outline-none">
+                         Bulk Renew Selected
+                     </button>
+                 </div>
+                 <% End If %>
             </div>
 
             <!-- Right Renewal Process Form (1/3 width) -->
@@ -186,7 +180,7 @@
                 </asp:Panel>
 
                 <%-- Bulk Renewal Panel (shown by JS with per-document upload cards) --%>
-                <% If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() <> "SuperAdmin" Then %>
+                <% If Session("Role") IsNot Nothing Then %>
                 <div id="pnlBulkRenew" class="hidden">
                     <div class="rounded-xl border border-blue-200 bg-white p-5 shadow-sm space-y-4">
                         <div class="border-b border-blue-100 pb-3 flex justify-between items-center">
@@ -213,7 +207,7 @@
 
                         <div class="flex gap-3 pt-2 border-t border-blue-100">
                             <button type="button" onclick="closeBulkRenewPanel()" class="flex-1 rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 py-2.5 text-xs font-bold cursor-pointer focus:outline-none">Cancel</button>
-                            <asp:Button ID="btnBulkRenew" runat="server" CssClass="flex-1 rounded bg-[#0054A6] hover:bg-blue-700 text-white py-2.5 text-xs font-bold cursor-pointer focus:outline-none" Text="Submit Bulk Renewal" OnClick="btnBulkRenew_Click" />
+                            <asp:Button ID="btnBulkRenew" runat="server" CssClass="flex-1 rounded bg-[#0054A6] hover:bg-blue-700 text-white py-2.5 text-xs font-bold cursor-pointer focus:outline-none" Text="Submit Bulk Renewal" OnClick="btnBulkRenew_Click" OnClientClick="return validateBulkRenewForm();" />
                         </div>
                     </div>
                 </div>
@@ -277,6 +271,11 @@
                         '</div>',
 
                         '<div>',
+                            '<label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">New Document/License Number <span class="text-red-500">*</span></label>',
+                            '<input type="text" name="docNumber_' + recId + '" placeholder="Enter new number" class="w-full rounded border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all font-mono uppercase" />',
+                        '</div>',
+
+                        '<div>',
                             '<label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Issuing Authority <span class="text-red-500">*</span></label>',
                             '<input type="text" name="authority_' + recId + '" placeholder="e.g. RTO" class="w-full rounded border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all" />',
                         '</div>',
@@ -293,7 +292,7 @@
                         '</div>',
 
                         '<div>',
-                            '<label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Upload PDF <span class="text-slate-400 font-normal">(optional)</span></label>',
+                            '<label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Upload PDF <span class="text-red-500">*</span></label>',
                             '<input type="file" name="docFile_' + recId + '" accept=".pdf" class="w-full text-[10px] text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-[10px] file:font-bold file:text-[#0054A6] hover:file:bg-blue-100" />',
                         '</div>',
                     '</div>'
@@ -301,6 +300,83 @@
             });
 
             document.getElementById('pnlBulkRenew').classList.remove('hidden');
+        }
+
+        function validateBulkRenewForm() {
+            var checked = document.querySelectorAll('.alertCheckbox:checked');
+            if (checked.length === 0) {
+                alert('No documents selected.');
+                return false;
+            }
+
+            var isValid = true;
+            checked.forEach(function(cb) {
+                if (!isValid) return;
+                var recId = cb.value;
+                var docType = cb.getAttribute('data-type') || 'Document';
+                var veh = cb.getAttribute('data-vehicle') || '';
+
+                var docNumber = document.getElementsByName('docNumber_' + recId)[0];
+                var authority = document.getElementsByName('authority_' + recId)[0];
+                var issueDate = document.getElementsByName('issueDate_' + recId)[0];
+                var expiryDate = document.getElementsByName('expiryDate_' + recId)[0];
+                var docFile = document.getElementsByName('docFile_' + recId)[0];
+
+                if (!docNumber || !docNumber.value.trim()) {
+                    alert('Please enter Document Number for ' + docType + ' of vehicle ' + veh);
+                    if (docNumber) docNumber.focus();
+                    isValid = false;
+                    return;
+                }
+
+                if (!authority || !authority.value.trim()) {
+                    alert('Please enter Issuing Authority for ' + docType + ' of vehicle ' + veh);
+                    if (authority) authority.focus();
+                    isValid = false;
+                    return;
+                }
+
+                if (!issueDate || !issueDate.value) {
+                    alert('Please select Issue Date for ' + docType + ' of vehicle ' + veh);
+                    if (issueDate) issueDate.focus();
+                    isValid = false;
+                    return;
+                }
+
+                if (!expiryDate || !expiryDate.value) {
+                    alert('Please select New Expiry Date for ' + docType + ' of vehicle ' + veh);
+                    if (expiryDate) expiryDate.focus();
+                    isValid = false;
+                    return;
+                }
+
+                var iss = new Date(issueDate.value);
+                var exp = new Date(expiryDate.value);
+                if (exp <= iss) {
+                    alert('Expiry date must be after issue date for ' + docType + ' of vehicle ' + veh);
+                    if (expiryDate) expiryDate.focus();
+                    isValid = false;
+                    return;
+                }
+
+                if (!docFile || docFile.files.length === 0) {
+                    alert('Please upload PDF document copy for ' + docType + ' of vehicle ' + veh);
+                    if (docFile) docFile.focus();
+                    isValid = false;
+                    return;
+                }
+
+                var fileName = docFile.value;
+                var ext = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+                if (ext !== 'pdf') {
+                    alert('Only PDF files are accepted. Please check the file for ' + docType + ' of vehicle ' + veh);
+                    if (docFile) docFile.focus();
+                    isValid = false;
+                    return;
+                }
+            });
+
+            return isValid;
         }
 
         function closeBulkRenewPanel() {

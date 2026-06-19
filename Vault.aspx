@@ -6,20 +6,6 @@
 
 <asp:Content ID="Content3" ContentPlaceHolderID="MainContent" runat="server">
     <div class="space-y-6">
-        <!-- Title and Action Bar -->
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-xl bg-slate-900 border border-slate-800 text-white p-6 shadow-md shadow-slate-900/10">
-            <div>
-                <h2 class="text-xl font-bold tracking-wide uppercase">Document Vault</h2>
-                <p class="text-xs text-slate-400 mt-1">
-                    View and verify all vehicle compliance records &mdash; RC copies &amp; compliance certificates.
-                </p>
-            </div>
-            <asp:LinkButton ID="btnRefresh" runat="server" OnClick="btnRefresh_Click" CssClass="flex items-center gap-1.5 rounded bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow transition-all duration-200 focus:outline-none">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8.89M9 11l3 3m0 0l3-3m-3 3V2" /></svg>
-                <span>Refresh</span>
-            </asp:LinkButton>
-        </div>
-
         <!-- Stats Cards -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div class="rounded-xl border border-blue-200 bg-blue-50/50 p-4 flex items-center gap-3">
@@ -81,6 +67,10 @@
                 <asp:ListItem Text="Verified Only" Value="1"></asp:ListItem>
                 <asp:ListItem Text="Pending Only" Value="0"></asp:ListItem>
             </asp:DropDownList>
+            <asp:LinkButton ID="btnRefresh" runat="server" OnClick="btnRefresh_Click" CssClass="flex items-center gap-1.5 rounded bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow transition-all duration-200 focus:outline-none shrink-0 justify-center">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8.89M9 11l3 3m0 0l3-3m-3 3V2" /></svg>
+                <span>Refresh</span>
+            </asp:LinkButton>
         </div>
 
         <!-- Document Table -->

@@ -1,4 +1,4 @@
-﻿Imports System
+Imports System
 Imports System.Data
 Imports System.Data.SQLite
 Imports System.Web
@@ -45,6 +45,9 @@ Public Class VaultPage
 
         Dim whereClauses As New List(Of String)()
         Dim parameters As New List(Of SQLiteParameter)()
+
+        ' Exclude decommissioned vehicles
+        whereClauses.Add("(v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL)")
 
         ' Scoping: Employees see only their own vehicles
         If role = "Employee" Then

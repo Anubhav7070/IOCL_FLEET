@@ -122,8 +122,8 @@ cd C:\Users\Lenovo\Downloads\IOCL-WebForms
 
 | Field | Value |
 |---|---|
-| **Employee No** | `00000001` |
-| **Password** | `Admin@123` |
+| **Employee No** | `10000001` |
+| **Password** | `10000001` |
 | **Role** | SuperAdmin |
 
 > ⚠️ Change the password after first login via **User Accounts** page.

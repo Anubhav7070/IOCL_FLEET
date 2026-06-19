@@ -18,12 +18,29 @@ Public Class DefaultPage
             Return
         End If
 
-        If Not IsPostBack Then
+        ' Always load stats and charts to ensure they are fresh and populated on every request
+        Try
             LoadDashboardStats()
+        Catch ex As Exception
+            ' Keep default label values (0) on error
+        End Try
+        Try
             LoadChartsData()
+        Catch ex As Exception
+            ' Keep empty chart on error
+        End Try
+
+        ' Set card attributes on every page load to guarantee client-side click events are registered
+        pnlTotalVehiclesCard.Attributes("onclick") = "document.getElementById('" & btnTotalVehiclesClick.ClientID & "').click();"
+        pnlCompliantCard.Attributes("onclick") = "document.getElementById('" & btnCompliantClick.ClientID & "').click();"
+        pnlNonCompliantCard.Attributes("onclick") = "document.getElementById('" & btnNonCompliantClick.ClientID & "').click();"
+        pnlExpiredCard.Attributes("onclick") = "document.getElementById('" & btnExpiredClick.ClientID & "').click();"
+
+        If Not IsPostBack Then
             LoadDepartmentDdl()
-            LoadAlerts()
-            LoadRecentAuditTrails()
+            RefreshSummaries()
+            ViewState("ActiveView") = "Total"
+            BindActiveView()
             If Session("Role").ToString() = "SuperAdmin" Then
                 LoadVerificationDocs()
             End If
@@ -35,7 +52,7 @@ Public Class DefaultPage
         Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
         Dim dept As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
 
-        ' Build scoped WHERE clause based on role
+        ' Build scoped WHERE clause based on role or department filter
         Dim scopeWhere As String = ""
         Dim scopeParam As SQLiteParameter = Nothing
         If role = "Employee" Then
@@ -44,6 +61,9 @@ Public Class DefaultPage
         ElseIf role = "DEPT_ADMIN" Then
             scopeWhere = " AND Department = @ScopeId"
             scopeParam = New SQLiteParameter("@ScopeId", dept)
+        ElseIf role = "SuperAdmin" AndAlso ddlAlertDept IsNot Nothing AndAlso Not String.IsNullOrEmpty(ddlAlertDept.SelectedValue) Then
+            scopeWhere = " AND Department = @ScopeId"
+            scopeParam = New SQLiteParameter("@ScopeId", ddlAlertDept.SelectedValue)
         End If
 
         Dim ExecScalar As Func(Of String, Integer) = Function(sql)
@@ -51,23 +71,19 @@ Public Class DefaultPage
         End Function
 
         ' Total
-        Dim total As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE 1=1" & scopeWhere)
+        Dim total As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE (IsDecommissioned = 0 OR IsDecommissioned IS NULL)" & scopeWhere)
         lblTotalVehicles.Text = total.ToString()
 
         ' Fully Compliant
-        Dim compliant As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'FULLY_COMPLIANT'" & scopeWhere)
+        Dim compliant As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'Compliant' AND (IsDecommissioned = 0 OR IsDecommissioned IS NULL)" & scopeWhere)
         lblCompliantVehicles.Text = compliant.ToString()
 
-        ' Warning
-        Dim warning As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'WARNING'" & scopeWhere)
-        lblWarningVehicles.Text = warning.ToString()
-
-        ' Critical
-        Dim critical As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'CRITICAL'" & scopeWhere)
-        lblCriticalVehicles.Text = critical.ToString()
+        ' Non-Compliant
+        Dim nonCompliant As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'Non-Compliant' AND (IsDecommissioned = 0 OR IsDecommissioned IS NULL)" & scopeWhere)
+        lblNonCompliantVehicles.Text = nonCompliant.ToString()
 
         ' Expired
-        Dim expired As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'EXPIRED'" & scopeWhere)
+        Dim expired As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'Expired' AND (IsDecommissioned = 0 OR IsDecommissioned IS NULL)" & scopeWhere)
         lblExpiredVehicles.Text = expired.ToString()
 
         ' Percent
@@ -77,64 +93,33 @@ Public Class DefaultPage
     Private Sub LoadChartsData()
         Dim role As String = Session("Role").ToString()
         Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
+        Dim userDept As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
 
-        ' 1. Fleet Status breakdown counts
-        Dim totalSql As String = "SELECT OverallStatus, COUNT(*) As Cnt FROM Vehicles"
-        If role = "Employee" Then totalSql &= " WHERE EmployeeId = " & empId
-        totalSql &= " GROUP BY OverallStatus"
-
-        Dim dtStatus As DataTable = Database.ExecuteDataTable(totalSql)
-        Dim fullyCompliant As Integer = 0
-        Dim warning As Integer = 0
-        Dim critical As Integer = 0
-        Dim expired As Integer = 0
-
-        For Each row As DataRow In dtStatus.Rows
-            Dim status As String = row("OverallStatus").ToString()
-            Dim cnt As Integer = Convert.ToInt32(row("Cnt"))
-            Select Case status
-                Case "FULLY_COMPLIANT"
-                    fullyCompliant = cnt
-                Case "WARNING"
-                    warning = cnt
-                Case "CRITICAL"
-                    critical = cnt
-                Case "EXPIRED"
-                    expired = cnt
-            End Select
-        Next
-
-        ' 2. Department comparison scores - only departments with actual vehicles
+        ' Query department vehicle counts
+        Dim sqlDepts As String = "SELECT Department, COUNT(*) As Cnt FROM Vehicles WHERE Department IS NOT NULL AND Department <> '' AND (IsDecommissioned = 0 OR IsDecommissioned IS NULL)"
         Dim dtDepts As DataTable
-        Dim sqlDepts As String = "SELECT v.Department As Code, " &
-                                 "COALESCE(CAST(SUM(CASE WHEN r.Status = 'ACTIVE' OR r.Status = 'WARNING' THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(r.Id), 0) AS REAL), 100.0) As ComplianceScore " &
-                                 "FROM Vehicles v " &
-                                 "LEFT JOIN ComplianceRecords r ON v.Id = r.VehicleId " &
-                                 "WHERE v.Department IS NOT NULL AND v.Department <> '' "
 
         If role = "Employee" Then
-            Dim userDept As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
-            sqlDepts &= " AND v.Department = @Dept GROUP BY v.Department ORDER BY ComplianceScore DESC"
-            dtDepts = Database.ExecuteDataTable(sqlDepts, New SQLiteParameter("@Dept", userDept))
+            sqlDepts &= " AND EmployeeId = @ScopeId GROUP BY Department"
+            dtDepts = Database.ExecuteDataTable(sqlDepts, New SQLiteParameter("@ScopeId", empId))
         ElseIf role = "DEPT_ADMIN" Then
-            Dim userDept As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
-            sqlDepts &= " AND v.Department = @Dept GROUP BY v.Department ORDER BY ComplianceScore DESC"
-            dtDepts = Database.ExecuteDataTable(sqlDepts, New SQLiteParameter("@Dept", userDept))
+            sqlDepts &= " AND Department = @ScopeId GROUP BY Department"
+            dtDepts = Database.ExecuteDataTable(sqlDepts, New SQLiteParameter("@ScopeId", userDept))
         Else
-            sqlDepts &= " GROUP BY v.Department ORDER BY ComplianceScore DESC"
+            sqlDepts &= " GROUP BY Department"
             dtDepts = Database.ExecuteDataTable(sqlDepts)
         End If
+
         Dim deptNames As New List(Of String)()
-        Dim deptScores As New List(Of Double)()
+        Dim deptCounts As New List(Of Integer)()
         For Each row As DataRow In dtDepts.Rows
-            deptNames.Add(row("Code").ToString())
-            deptScores.Add(Convert.ToDouble(row("ComplianceScore")))
+            deptNames.Add(row("Department").ToString())
+            deptCounts.Add(Convert.ToInt32(row("Cnt")))
         Next
 
         Dim chartObj As New Dictionary(Of String, Object)()
-        chartObj("StatusData") = New Integer() {fullyCompliant, warning, critical, expired}
         chartObj("DeptNames") = deptNames
-        chartObj("DeptScores") = deptScores
+        chartObj("DeptCounts") = deptCounts
 
         Dim serializer As New JavaScriptSerializer()
         ChartDataJson = serializer.Serialize(chartObj)
@@ -143,7 +128,7 @@ Public Class DefaultPage
     Private Sub LoadDepartmentDdl()
         If ddlAlertDept Is Nothing Then Return
         
-        Dim dt As DataTable = Database.ExecuteDataTable("SELECT DISTINCT Department As Code FROM Employee WHERE Department IS NOT NULL AND Department <> '' ORDER BY Department ASC")
+        Dim dt As DataTable = Database.ExecuteDataTable("SELECT DISTINCT Department As Code FROM Vehicles WHERE Department IS NOT NULL AND Department <> '' UNION SELECT DISTINCT Department As Code FROM Employee WHERE Department IS NOT NULL AND Department <> '' ORDER BY Code ASC")
         ddlAlertDept.Items.Clear()
         ddlAlertDept.Items.Add(New ListItem("All Divisions", ""))
         For Each row As DataRow In dt.Rows
@@ -151,16 +136,292 @@ Public Class DefaultPage
         Next
     End Sub
 
-    Private Sub LoadAlerts()
+    Private Sub LoadVehicleTypeSummary()
         Dim role As String = Session("Role").ToString()
         Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
 
-        Dim sql As String = "SELECT r.Id, r.LicenseType, r.ExpiryDate, r.Status, v.VehicleNumber, v.Department As DepartmentCode " &
+        Dim sql As String = "SELECT VehicleType, COUNT(*) As Cnt FROM Vehicles WHERE (IsDecommissioned = 0 OR IsDecommissioned IS NULL)"
+        Dim params As New List(Of SQLiteParameter)()
+
+        If role = "Employee" Then
+            sql &= " AND EmployeeId = @EmpId"
+            params.Add(New SQLiteParameter("@EmpId", empId))
+        ElseIf role = "DEPT_ADMIN" Then
+            Dim deptScope As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
+            If Not String.IsNullOrEmpty(deptScope) Then
+                sql &= " AND Department = @DeptScope"
+                params.Add(New SQLiteParameter("@DeptScope", deptScope))
+            End If
+        End If
+
+        sql &= " GROUP BY VehicleType ORDER BY Cnt DESC"
+
+        Dim dt As DataTable = Database.ExecuteDataTable(sql, params.ToArray())
+        rptVehicleTypes.DataSource = dt
+        rptVehicleTypes.DataBind()
+    End Sub
+
+    Private Sub LoadDepartmentSummary()
+        Dim role As String = Session("Role").ToString()
+        Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
+
+        Dim sql As String = "SELECT Department, COUNT(*) As Cnt FROM Vehicles WHERE Department IS NOT NULL AND Department <> '' AND (IsDecommissioned = 0 OR IsDecommissioned IS NULL)"
+        Dim params As New List(Of SQLiteParameter)()
+
+        If role = "Employee" Then
+            sql &= " AND EmployeeId = @EmpId"
+            params.Add(New SQLiteParameter("@EmpId", empId))
+        ElseIf role = "DEPT_ADMIN" Then
+            Dim deptScope As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
+            If Not String.IsNullOrEmpty(deptScope) Then
+                sql &= " AND Department = @DeptScope"
+                params.Add(New SQLiteParameter("@DeptScope", deptScope))
+            End If
+        End If
+
+        sql &= " GROUP BY Department ORDER BY Cnt DESC"
+
+        Dim dt As DataTable = Database.ExecuteDataTable(sql, params.ToArray())
+        rptDepartments.DataSource = dt
+        rptDepartments.DataBind()
+    End Sub
+
+    Protected Sub rptDepartments_ItemCommand(ByVal source As Object, ByVal e As RepeaterCommandEventArgs)
+        If e.CommandName = "SelectDept" Then
+            Dim dept As String = e.CommandArgument.ToString()
+            ViewState("SelectedDeptForBreakdown") = dept
+            LoadDeptBreakdown(dept)
+
+            ' Also filter the bottom vehicles table by this department!
+            If ddlAlertDept IsNot Nothing Then
+                If ddlAlertDept.Items.FindByValue(dept) Is Nothing Then
+                    ddlAlertDept.Items.Add(New ListItem(dept, dept))
+                End If
+                ddlAlertDept.SelectedValue = dept
+                BindActiveView()
+            End If
+        End If
+    End Sub
+
+    Private Sub LoadDeptBreakdown(ByVal dept As String)
+        If String.IsNullOrEmpty(dept) Then
+            pnlDeptBreakdown.Visible = False
+            pnlNoDeptBreakdown.Visible = True
+            Return
+        End If
+
+        Dim role As String = Session("Role").ToString()
+        Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
+
+        Dim sql As String = "SELECT VehicleType, COUNT(*) As Cnt FROM Vehicles WHERE Department = @Dept AND (IsDecommissioned = 0 OR IsDecommissioned IS NULL)"
+        Dim params As New List(Of SQLiteParameter)()
+        params.Add(New SQLiteParameter("@Dept", dept))
+
+        If role = "Employee" Then
+            sql &= " AND EmployeeId = @EmpId"
+            params.Add(New SQLiteParameter("@EmpId", empId))
+        ElseIf role = "DEPT_ADMIN" Then
+            Dim deptScope As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
+            If Not String.IsNullOrEmpty(deptScope) Then
+                sql &= " AND Department = @DeptScope"
+                params.Add(New SQLiteParameter("@DeptScope", deptScope))
+            End If
+        End If
+
+        sql &= " GROUP BY VehicleType ORDER BY Cnt DESC"
+
+        Dim dt As DataTable = Database.ExecuteDataTable(sql, params.ToArray())
+        lblBreakdownDeptName.Text = dept
+        rptDeptBreakdown.DataSource = dt
+        rptDeptBreakdown.DataBind()
+
+        pnlDeptBreakdown.Visible = True
+        pnlNoDeptBreakdown.Visible = False
+    End Sub
+
+    Private Sub RefreshSummaries()
+        LoadVehicleTypeSummary()
+        LoadDepartmentSummary()
+        If ViewState("SelectedDeptForBreakdown") IsNot Nothing Then
+            LoadDeptBreakdown(ViewState("SelectedDeptForBreakdown").ToString())
+        Else
+            pnlDeptBreakdown.Visible = False
+            pnlNoDeptBreakdown.Visible = True
+        End If
+    End Sub
+
+    ' ── Active View Tab Controls ──
+
+    Protected Sub lnkTotalVehicles_Click(ByVal sender As Object, ByVal e As EventArgs)
+        Response.Redirect("~/Vehicles.aspx", False)
+        HttpContext.Current.ApplicationInstance.CompleteRequest()
+    End Sub
+
+    Protected Sub lnkCompliantVehicles_Click(ByVal sender As Object, ByVal e As EventArgs)
+        ViewState("ActiveView") = "Compliant"
+        BindActiveView()
+    End Sub
+
+    Protected Sub lnkNonCompliantVehicles_Click(ByVal sender As Object, ByVal e As EventArgs)
+        ViewState("ActiveView") = "NonCompliant"
+        BindActiveView()
+    End Sub
+
+    Protected Sub lnkExpiredVehicles_Click(ByVal sender As Object, ByVal e As EventArgs)
+        ViewState("ActiveView") = "Expired"
+        BindActiveView()
+    End Sub
+
+    Protected Sub FilterAlerts(ByVal sender As Object, ByVal e As EventArgs)
+        LoadDashboardStats()
+        BindActiveView()
+    End Sub
+
+    Private Sub ResetCardStyles()
+        pnlTotalVehiclesCard.CssClass = "rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-blue-400 transition-all w-full flex items-center justify-between cursor-pointer"
+        pnlCompliantCard.CssClass = "rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all w-full flex items-center justify-between cursor-pointer"
+        pnlNonCompliantCard.CssClass = "rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-orange-400 transition-all w-full flex items-center justify-between cursor-pointer"
+        pnlExpiredCard.CssClass = "rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-red-400 transition-all w-full flex items-center justify-between cursor-pointer"
+    End Sub
+
+    Private Sub BindActiveView()
+        Dim active As String = If(ViewState("ActiveView") IsNot Nothing, ViewState("ActiveView").ToString(), "Total")
+
+        ' Toggle Visibility of Panels
+        pnlTotalVehiclesView.Visible = (active = "Total")
+        pnlCompliantVehiclesView.Visible = (active = "Compliant")
+        pnlNonCompliantView.Visible = (active = "NonCompliant")
+        pnlExpiredView.Visible = (active = "Expired")
+
+        pnlMetricsSummary.Visible = (active = "Total")
+        pnlVerificationHub.Visible = (active = "Total") AndAlso (Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin")
+
+        ResetCardStyles()
+
+        Select Case active
+            Case "Total"
+                lblActiveTabTitle.Text = "Registered Vehicles"
+                lblActiveTabDesc.Text = "Directory of all registered refinery vehicles"
+                LoadTotalVehiclesList()
+                pnlTotalVehiclesCard.CssClass = "rounded-xl border-2 border-blue-500 bg-blue-50/30 p-5 shadow-md transition-all w-full flex items-center justify-between cursor-pointer"
+
+            Case "Compliant"
+                lblActiveTabTitle.Text = "Compliant Vehicles"
+                lblActiveTabDesc.Text = "Directory of all compliant refinery vehicles (windshield clearance green)"
+                LoadCompliantVehiclesList()
+                pnlCompliantCard.CssClass = "rounded-xl border-2 border-emerald-500 bg-emerald-50/30 p-5 shadow-md transition-all w-full flex items-center justify-between cursor-pointer"
+
+            Case "NonCompliant"
+                lblActiveTabTitle.Text = "Non-Compliant Documents"
+                lblActiveTabDesc.Text = "Compliance certificates within warning thresholds (renewal needed)"
+                LoadScopedDocumentRepeater(rptNonCompliantRC, "Non-Compliant", "RC")
+                LoadScopedDocumentRepeater(rptNonCompliantInsurance, "Non-Compliant", "INSURANCE")
+                LoadScopedDocumentRepeater(rptNonCompliantPUCC, "Non-Compliant", "PUCC")
+                pnlNonCompliantCard.CssClass = "rounded-xl border-2 border-orange-500 bg-orange-50/30 p-5 shadow-md transition-all w-full flex items-center justify-between cursor-pointer"
+
+            Case "Expired"
+                lblActiveTabTitle.Text = "Expired Certificates"
+                lblActiveTabDesc.Text = "Expired safety records (gate entry blocked)"
+                LoadScopedDocumentRepeater(rptExpiredRC, "Expired", "RC")
+                LoadScopedDocumentRepeater(rptExpiredInsurance, "Expired", "INSURANCE")
+                LoadScopedDocumentRepeater(rptExpiredPUCC, "Expired", "PUCC")
+                pnlExpiredCard.CssClass = "rounded-xl border-2 border-red-500 bg-red-50/30 p-5 shadow-md transition-all w-full flex items-center justify-between cursor-pointer"
+        End Select
+    End Sub
+
+    Private Sub LoadTotalVehiclesList()
+        Dim role As String = Session("Role").ToString()
+        Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
+
+        Dim sql As String = "SELECT v.Id, v.VehicleNumber, v.VehicleType, v.OverallStatus, v.Department As DepartmentName " &
+                           "FROM Vehicles v"
+
+        Dim whereClauses As New List(Of String)()
+        Dim params As New List(Of SQLiteParameter)()
+
+        whereClauses.Add("(v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL)")
+
+        If role = "Employee" Then
+            whereClauses.Add("v.EmployeeId = @EmpId")
+            params.Add(New SQLiteParameter("@EmpId", empId))
+        ElseIf role = "DEPT_ADMIN" Then
+            Dim deptScope As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
+            If Not String.IsNullOrEmpty(deptScope) Then
+                whereClauses.Add("v.Department = @DeptScope")
+                params.Add(New SQLiteParameter("@DeptScope", deptScope))
+            End If
+        End If
+
+        ' Apply department dropdown filter if it exists and SuperAdmin is viewing
+        If role = "SuperAdmin" AndAlso ddlAlertDept IsNot Nothing AndAlso Not String.IsNullOrEmpty(ddlAlertDept.SelectedValue) Then
+            whereClauses.Add("v.Department = @Dept")
+            params.Add(New SQLiteParameter("@Dept", ddlAlertDept.SelectedValue))
+        End If
+
+        If whereClauses.Count > 0 Then
+            sql &= " WHERE " & String.Join(" AND ", whereClauses.ToArray())
+        End If
+
+        sql &= " ORDER BY v.VehicleNumber"
+
+        Dim dt As DataTable = Database.ExecuteDataTable(sql, params.ToArray())
+        rptTotalVehicles.DataSource = dt
+        rptTotalVehicles.DataBind()
+    End Sub
+
+    Private Sub LoadCompliantVehiclesList()
+        Dim role As String = Session("Role").ToString()
+        Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
+
+        Dim sql As String = "SELECT v.Id, v.VehicleNumber, v.VehicleType, v.OverallStatus, v.Department As DepartmentName " &
+                           "FROM Vehicles v"
+
+        Dim whereClauses As New List(Of String)()
+        Dim params As New List(Of SQLiteParameter)()
+
+        whereClauses.Add("v.OverallStatus = 'Compliant'")
+        whereClauses.Add("(v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL)")
+
+        If role = "Employee" Then
+            whereClauses.Add("v.EmployeeId = @EmpId")
+            params.Add(New SQLiteParameter("@EmpId", empId))
+        ElseIf role = "DEPT_ADMIN" Then
+            Dim deptScope As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
+            If Not String.IsNullOrEmpty(deptScope) Then
+                whereClauses.Add("v.Department = @DeptScope")
+                params.Add(New SQLiteParameter("@DeptScope", deptScope))
+            End If
+        End If
+
+        ' Apply department dropdown filter if it exists and SuperAdmin is viewing
+        If role = "SuperAdmin" AndAlso ddlAlertDept IsNot Nothing AndAlso Not String.IsNullOrEmpty(ddlAlertDept.SelectedValue) Then
+            whereClauses.Add("v.Department = @Dept")
+            params.Add(New SQLiteParameter("@Dept", ddlAlertDept.SelectedValue))
+        End If
+
+        If whereClauses.Count > 0 Then
+            sql &= " WHERE " & String.Join(" AND ", whereClauses.ToArray())
+        End If
+
+        sql &= " ORDER BY v.VehicleNumber"
+
+        Dim dt As DataTable = Database.ExecuteDataTable(sql, params.ToArray())
+        rptCompliantVehicles.DataSource = dt
+        rptCompliantVehicles.DataBind()
+    End Sub
+
+    Private Sub LoadScopedDocumentRepeater(ByVal rpt As Repeater, ByVal status As String, ByVal licType As String)
+        Dim role As String = Session("Role").ToString()
+        Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
+
+        Dim sql As String = "SELECT r.Id, r.LicenseType, r.ExpiryDate, r.Status, v.VehicleNumber, v.Department As DepartmentName " &
                            "FROM ComplianceRecords r " &
                            "INNER JOIN Vehicles v ON r.VehicleId = v.Id " &
-                           "WHERE 1=1"
+                           "WHERE r.Status = @Status AND r.LicenseType = @LicType AND (v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL)"
 
         Dim params As New List(Of SQLiteParameter)()
+        params.Add(New SQLiteParameter("@Status", status))
+        params.Add(New SQLiteParameter("@LicType", licType))
 
         If role = "Employee" Then
             sql &= " AND v.EmployeeId = @EmpId"
@@ -173,76 +434,31 @@ Public Class DefaultPage
             End If
         End If
 
-        ' Department filter (SuperAdmin only)
-        If role = "SuperAdmin" AndAlso Not String.IsNullOrEmpty(ddlAlertDept.SelectedValue) Then
+        ' Apply department dropdown filter if it exists and SuperAdmin is viewing
+        If role = "SuperAdmin" AndAlso ddlAlertDept IsNot Nothing AndAlso Not String.IsNullOrEmpty(ddlAlertDept.SelectedValue) Then
             sql &= " AND v.Department = @Dept"
             params.Add(New SQLiteParameter("@Dept", ddlAlertDept.SelectedValue))
         End If
 
-        ' Priority filter
-        Dim priority As String = ddlAlertPriority.SelectedValue
-        If priority = "HIGH" Then
-            sql &= " AND (r.Status = 'EXPIRED' OR r.Status = 'HIGH_CRITICAL')"
-        ElseIf priority = "MEDIUM" Then
-            sql &= " AND r.Status = 'MEDIUM_CRITICAL'"
-        ElseIf priority = "LOW" Then
-            sql &= " AND r.Status = 'WARNING'"
-        Else
-            sql &= " AND r.Status != 'ACTIVE'"
-        End If
-
-        sql &= " ORDER BY r.ExpiryDate ASC LIMIT 25"
+        sql &= " ORDER BY r.ExpiryDate ASC"
 
         Dim dt As DataTable = Database.ExecuteDataTable(sql, params.ToArray())
-        rptAlerts.DataSource = dt
-        rptAlerts.DataBind()
+        rpt.DataSource = dt
+        rpt.DataBind()
     End Sub
 
-    Protected Sub FilterAlerts(ByVal sender As Object, ByVal e As EventArgs)
-        LoadAlerts()
-    End Sub
-
-    Private Sub LoadRecentAuditTrails()
-        Dim role As String = Session("Role").ToString()
-        Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
-        
-        Dim sql As String = ""
-        Dim dt As DataTable
-
-        If role = "SuperAdmin" Then
-            sql = "SELECT Username, Action, Description, Timestamp FROM AuditLogs ORDER BY Id DESC LIMIT 6"
-            dt = Database.ExecuteDataTable(sql)
-        Else
-            sql = "SELECT Username, Action, Description, Timestamp FROM AuditLogs WHERE UserId = @EmpId ORDER BY Id DESC LIMIT 6"
-            dt = Database.ExecuteDataTable(sql, New SQLiteParameter("@EmpId", empId))
-        End If
-
-        ' Add a formatted time column
-        dt.Columns.Add("FormattedTime", GetType(String))
-        For Each row As DataRow In dt.Rows
-            Dim ts As String = row("Timestamp").ToString()
-            Dim dtVal As DateTime
-            If DateTime.TryParse(ts, dtVal) Then
-                row("FormattedTime") = dtVal.ToString("hh:mm tt")
-            Else
-                row("FormattedTime") = ts
-            End If
-        Next
-
-        rptAuditFeed.DataSource = dt
-        rptAuditFeed.DataBind()
-    End Sub
-
-    ' â”€â”€ Document Verification Hub (SuperAdmin only) â”€â”€
+    ' ── Document Verification Hub (SuperAdmin only) ──
     Private Sub LoadVerificationDocs()
         Dim sql As String = "SELECT 'VEHICLE_RC' As LicenseType, v.Id As Id, v.VehicleNumber, v.Department As DepartmentCode, doc.FileName, doc.FilePath, v.IsVerified As IsVerified " &
                            "FROM Vehicles v " &
                            "INNER JOIN Documents doc ON v.DocumentId = doc.Id " &
+                           "WHERE (v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL) " &
                            "UNION ALL " &
                            "SELECT r.LicenseType As LicenseType, r.Id As Id, v.VehicleNumber, v.Department As DepartmentCode, doc.FileName, doc.FilePath, r.IsVerified As IsVerified " &
                            "FROM ComplianceRecords r " &
                            "INNER JOIN Vehicles v ON r.VehicleId = v.Id " &
                            "INNER JOIN Documents doc ON r.DocumentId = doc.Id " &
+                           "WHERE (v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL) " &
                            "ORDER BY IsVerified ASC, Id DESC"
 
         Dim dt As DataTable = Database.ExecuteDataTable(sql)
@@ -258,19 +474,12 @@ Public Class DefaultPage
             Dim newVerified As Integer = If(currentVerified = 1, 0, 1)
 
             Dim item As RepeaterItem = e.Item
-            Dim licenseType As String = DirectCast(item.FindControl("btnToggleVerify"), LinkButton).Text.Trim()
-            
             Dim userStr As String = Session("EmployeeName").ToString()
             Dim userId As Integer = Convert.ToInt32(Session("EmployeeId"))
 
-            ' The table has a mixed key: check type from target row in source Datatable. We can inspect the command source
-            Dim sqlSelect As String = ""
-            Dim isRc As Boolean = False
-            
-            ' Fetch item data from command target
-            Dim parentRow As DataRowView = DirectCast(item.DataItem, DataRowView)
             Dim typeName As String = ""
             Dim plateNum As String = ""
+            Dim isRc As Boolean = False
             
             ' Re-query to identify the row type securely
             Dim checkSql As String = "SELECT v.VehicleNumber, 'VEHICLE_RC' As TypeVal FROM Vehicles v WHERE v.Id = " & id & " UNION ALL SELECT v.VehicleNumber, r.LicenseType As TypeVal FROM ComplianceRecords r INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE r.Id = " & id
@@ -309,7 +518,7 @@ Public Class DefaultPage
                 
                 ' Notify employee of approval
                 If newVerified = 1 Then
-                    Dim ownerIdObj As Object = Database.ExecuteScalar("SELECT EmployeeId FROM Vehicles v INNER JOIN ComplianceRecords r ON v.Id = r.VehicleId WHERE r.Id = " & id)
+                    Dim ownerIdObj = Database.ExecuteScalar("SELECT EmployeeId FROM Vehicles v INNER JOIN ComplianceRecords r ON v.Id = r.VehicleId WHERE r.Id = " & id)
                     If ownerIdObj IsNot Nothing AndAlso Not Convert.IsDBNull(ownerIdObj) Then
                         EmailService.NotifyEmployeeOfDocumentApproval(Convert.ToInt32(ownerIdObj), plateNum, typeName)
                     End If
@@ -319,164 +528,13 @@ Public Class DefaultPage
             ' Refresh dashboard
             LoadDashboardStats()
             LoadChartsData()
-            LoadAlerts()
+            RefreshSummaries()
+            BindActiveView()
             LoadVerificationDocs()
-            LoadRecentAuditTrails()
         End If
     End Sub
 
-    ' â”€â”€ Manual Email Controls (Daily Digest & Alert Scan) â”€â”€
-
-    Protected Sub btnDailyDigest_Click(ByVal sender As Object, ByVal e As EventArgs)
-        Dim userId As Integer = Convert.ToInt32(Session("EmployeeId"))
-        Dim username As String = Session("EmployeeName").ToString()
-
-        Try
-            ' Gather statistics for the daily summaries
-            Dim totalVehicles As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT COUNT(*) FROM Vehicles"))
-            Dim expiredCount As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT COUNT(*) FROM ComplianceRecords WHERE Status = 'EXPIRED'"))
-            Dim criticalCount As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT COUNT(*) FROM ComplianceRecords WHERE Status IN ('HIGH_CRITICAL', 'MEDIUM_CRITICAL')"))
-            Dim warningCount As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT COUNT(*) FROM ComplianceRecords WHERE Status = 'WARNING'"))
-
-            Dim depts As DataTable = Database.ExecuteDataTable(
-                "SELECT e.Department As Name, e.Department As Code, " &
-                "COALESCE(CAST(SUM(CASE WHEN r.Status = 'ACTIVE' OR r.Status = 'WARNING' THEN 1 ELSE 0 END) * 100.0 / COUNT(r.Id) AS REAL), 100.0) As ComplianceScore " &
-                "FROM Employee e " &
-                "LEFT JOIN Vehicles v ON e.EmployeeId = v.EmployeeId " &
-                "LEFT JOIN ComplianceRecords r ON v.Id = r.VehicleId " &
-                "WHERE e.Department IS NOT NULL AND e.Department <> '' " &
-                "GROUP BY e.Department")
-            Dim deptBreakdowns As New List(Of String)()
-            For Each r As DataRow In depts.Rows
-                deptBreakdowns.Add("<li><strong>" & r("Code").ToString() & "</strong> (" & r("Name").ToString() & "): " & r("ComplianceScore").ToString() & "%</li>")
-            Next
-            Dim breakdownsHtml As String = "<ul>" & String.Join("", deptBreakdowns) & "</ul>"
-
-            Dim expiringList As New List(Of String)()
-            Dim dtExp As DataTable = Database.ExecuteDataTable("SELECT r.LicenseType, r.ExpiryDate, r.Status, v.VehicleNumber FROM ComplianceRecords r INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE r.Status != 'ACTIVE'")
-            For Each rExp As DataRow In dtExp.Rows
-                expiringList.Add("<tr><td style='padding: 6px; border: 1px solid #ddd;'>" & rExp("VehicleNumber").ToString() & "</td><td style='padding: 6px; border: 1px solid #ddd;'>" & rExp("LicenseType").ToString() & "</td><td style='padding: 6px; border: 1px solid #ddd;'>" & rExp("ExpiryDate").ToString() & "</td><td style='padding: 6px; border: 1px solid #ddd; color: red;'>" & rExp("Status").ToString() & "</td></tr>")
-            Next
-            Dim expiringHtml As String = "<table style='width: 100%; border-collapse: collapse; margin-top: 10px;'><thead><tr style='background: #eee;'><th style='padding: 6px; border: 1px solid #ddd;'>Vehicle</th><th style='padding: 6px; border: 1px solid #ddd;'>Cert Type</th><th style='padding: 6px; border: 1px solid #ddd;'>Expiry Date</th><th style='padding: 6px; border: 1px solid #ddd;'>Status</th></tr></thead><tbody>" & String.Join("", expiringList) & "</tbody></table>"
-
-            Dim subject As String = "IOCL Daily compliance summary Report - All Divisions"
-            Dim body As String = "<h2>Daily Fleet Compliance Digest</h2>" &
-                         "<p>Dear Refinery Administrator,</p>" &
-                         "<p>Here is the daily fleet safety status summary:</p>" &
-                         "<ul>" &
-                         "<li><strong>Total Registered Fleet:</strong> " & totalVehicles & "</li>" &
-                         "<li><strong>Active Alerts (Expired):</strong> <span style='color: red;'>" & expiredCount & "</span></li>" &
-                         "<li><strong>Active Alerts (Critical):</strong> <span style='color: orange;'>" & criticalCount & "</span></li>" &
-                         "<li><strong>Active Alerts (Warning):</strong> <span style='color: #EAB308;'>" & warningCount & "</span></li>" &
-                         "</ul>" &
-                         "<h3>Division Scorecard</h3>" & breakdownsHtml &
-                         "<h3>Warning & Expired Certificates</h3>" & expiringHtml &
-                         "<br><hr><p>This digest was manually triggered by " & username & " via the administrator control center.</p>"
-
-            ' Notify all SuperAdmins and DeptAdmins (Employees with administrator designations)
-            Dim usersToNotify As DataTable = Database.ExecuteDataTable("SELECT e.EmailId, e.EmployeeName FROM Authentication a INNER JOIN Employee e ON a.EmployeeId = e.EmployeeId")
-            
-            Dim sentCount As Integer = 0
-            For Each row As DataRow In usersToNotify.Rows
-                Dim email As String = row("EmailId").ToString()
-                EmailService.SendEmail(email, subject, body)
-                sentCount += 1
-            Next
-
-            Database.ExecuteNonQuery("INSERT INTO AuditLogs (UserId, Username, Action, Description, IpAddress, Timestamp) VALUES (" & userId & ", @Username, 'TRIGGER_DAILY_DIGEST', 'Dispatched daily summary reports via email.', @IP, datetime('now'));", New SQLiteParameter("@Username", username), New SQLiteParameter("@IP", Request.UserHostAddress))
-
-            pnlDispatcherStatus.Visible = True
-            pnlDispatcherStatus.CssClass = "rounded-lg border p-3 text-xs font-semibold bg-emerald-50 border-emerald-200 text-emerald-700"
-            lblDispatcherStatus.Text = "Daily compliance summaries successfully emailed to all " & sentCount & " refinery operators."
-        
-        Catch ex As Exception
-            pnlDispatcherStatus.Visible = True
-            pnlDispatcherStatus.CssClass = "rounded-lg border p-3 text-xs font-semibold bg-red-50 border-red-200 text-red-700"
-            lblDispatcherStatus.Text = "Failed to dispatch daily digest: " & ex.Message
-        End Try
-    End Sub
-
-    Protected Sub btnComplianceScan_Click(ByVal sender As Object, ByVal e As EventArgs)
-        Dim userId As Integer = Convert.ToInt32(Session("EmployeeId"))
-        Dim username As String = Session("EmployeeName").ToString()
-
-        Try
-            ' 1. Pull all compliance records to run calculated scan
-            Dim records As DataTable = Database.ExecuteDataTable("SELECT Id, VehicleId, LicenseType, LicenseNumber, ExpiryDate, Status FROM ComplianceRecords")
-            Dim scanCount As Integer = 0
-            Dim alertsCount As Integer = 0
-
-            For Each r As DataRow In records.Rows
-                Dim recordId As Integer = Convert.ToInt32(r("Id"))
-                Dim vehicleId As Integer = Convert.ToInt32(r("VehicleId"))
-                Dim expiryStr As String = r("ExpiryDate").ToString()
-                Dim currentStatus As String = r("Status").ToString()
-
-                If String.IsNullOrEmpty(expiryStr) OrElse expiryStr = "PENDING" Then Continue For
-
-                Dim computedStatus As String = Compliance.CalculateStatus(expiryStr)
-                scanCount += 1
-
-                ' Update status if it changed
-                If currentStatus <> computedStatus Then
-                    Database.ExecuteNonQuery("UPDATE ComplianceRecords SET Status = @Status, UpdatedAt = datetime('now') WHERE Id = @Id", New SQLiteParameter("@Status", computedStatus), New SQLiteParameter("@Id", recordId))
-                    Compliance.UpdateVehicleStatus(vehicleId)
-
-                    ' Log database compliance alert
-                    If computedStatus <> "ACTIVE" Then
-                        alertsCount += 1
-                        Dim plateObj As Object = Database.ExecuteScalar("SELECT VehicleNumber FROM Vehicles WHERE Id = " & vehicleId)
-                        Dim deptObj As Object = Database.ExecuteScalar("SELECT Department FROM Vehicles WHERE Id = " & vehicleId)
-                        
-                        Dim plateNum As String = If(plateObj IsNot Nothing, plateObj.ToString(), "N/A")
-                        Dim dept As String = If(deptObj IsNot Nothing, deptObj.ToString(), "")
-
-                        Dim alertMessage As String = r("LicenseType").ToString() & " certificate for vehicle " & plateNum & " is now " & computedStatus & "."
-                        Dim title As String = "Compliance Alert: " & r("LicenseType").ToString()
-                        Dim typeVal As String = If(computedStatus = "EXPIRED", "EXPIRED", If(computedStatus = "WARNING", "WARNING", "CRITICAL"))
-
-                        Database.ExecuteNonQuery("INSERT INTO Notifications (VehicleId, Department, Title, Message, Type, Status, CreatedAt) VALUES (" & vehicleId & ", @Dept, @Title, @Msg, @TypeVal, 'UNREAD', datetime('now'))", New SQLiteParameter("@Dept", dept), New SQLiteParameter("@Title", title), New SQLiteParameter("@Msg", alertMessage), New SQLiteParameter("@TypeVal", typeVal))
-
-                        ' Dispatch email alerts to admins
-                        Dim alertSubject As String = "IOCL FLEET CRITICAL COMPLIANCE ALERT: " & plateNum & " (" & r("LicenseType").ToString() & ")"
-                        Dim alertBody As String = "<h2>Critical Expiry Alert</h2>" &
-                                                 "<p>The safety certificate status for vehicle <strong>" & plateNum & "</strong> has changed.</p>" &
-                                                 "<ul>" &
-                                                 "<li><strong>Document slot:</strong> " & r("LicenseType").ToString() & "</li>" &
-                                                 "<li><strong>License number:</strong> " & r("LicenseNumber").ToString() & "</li>" &
-                                                 "<li><strong>Expiry date:</strong> " & expiryStr & "</li>" &
-                                                 "<li><strong>New Status:</strong> <span style='color: red; font-weight: bold;'>" & computedStatus & "</span></li>" &
-                                                 "</ul>" &
-                                                 "<p>Please review records and block gate pass if necessary.</p>"
-
-                        Dim admins As DataTable = Database.ExecuteDataTable("SELECT EmailId FROM Employee e INNER JOIN Authentication a ON e.EmployeeId = a.EmployeeId WHERE a.Role = 'SuperAdmin'")
-                        For Each adminRow As DataRow In admins.Rows
-                            EmailService.SendEmail(adminRow("EmailId").ToString(), alertSubject, alertBody)
-                        Next
-                    End If
-                End If
-            Next
-
-            Database.ExecuteNonQuery("INSERT INTO AuditLogs (UserId, Username, Action, Description, IpAddress, Timestamp) VALUES (" & userId & ", @Username, 'TRIGGER_EMAIL_SCAN', 'Executed system-wide compliance scanning. Verified all certificates.', @IP, datetime('now'));", New SQLiteParameter("@Username", username), New SQLiteParameter("@IP", Request.UserHostAddress))
-
-            pnlDispatcherStatus.Visible = True
-            pnlDispatcherStatus.CssClass = "rounded-lg border p-3 text-xs font-semibold bg-emerald-50 border-emerald-200 text-emerald-700"
-            lblDispatcherStatus.Text = "System scan finished. Scanned " & scanCount & " documents. Created " & alertsCount & " notifications and alert emails."
-            
-            ' Reload view
-            LoadDashboardStats()
-            LoadChartsData()
-            LoadAlerts()
-            LoadRecentAuditTrails()
-
-        Catch ex As Exception
-            pnlDispatcherStatus.Visible = True
-            pnlDispatcherStatus.CssClass = "rounded-lg border p-3 text-xs font-semibold bg-red-50 border-red-200 text-red-700"
-            lblDispatcherStatus.Text = "Scan failed: " & ex.Message
-        End Try
-    End Sub
-
-    ' â”€â”€ Shared Helpers â”€â”€
+    ' ── Shared Helpers ──
 
     Public Function FmtDate(ByVal d As Object) As String
         If d Is Nothing OrElse Convert.IsDBNull(d) OrElse String.IsNullOrEmpty(d.ToString()) Then Return "Pending"
@@ -493,20 +551,18 @@ Public Class DefaultPage
         If status Is Nothing Then Return "bg-slate-100 text-slate-700"
         Dim s As String = status.ToString()
         Select Case s
-            Case "ACTIVE", "FULLY_COMPLIANT"
+            Case "Compliant"
                 Return "bg-emerald-100 text-emerald-700"
-            Case "WARNING"
-                Return "bg-yellow-100 text-yellow-700"
-            Case "CRITICAL", "MEDIUM_CRITICAL", "HIGH_CRITICAL"
+            Case "Non-Compliant"
                 Return "bg-orange-100 text-orange-700"
-            Case "EXPIRED"
+            Case "Expired"
                 Return "bg-red-100 text-red-700"
             Case Else
                 Return "bg-slate-100 text-slate-700"
         End Select
     End Function
 
-    ' â”€â”€ WebMethods for Polling Notifications (Exposed in Default.aspx.vb for Master page) â”€â”€
+    ' ── WebMethods for Polling Notifications (Exposed in Default.aspx.vb for Master page) ──
 
     <WebMethod(EnableSession:=True)>
     Public Shared Function GetLatestNotifications() As String
@@ -522,7 +578,7 @@ Public Class DefaultPage
             sql = "SELECT Id, Title, Message, CreatedAt FROM Notifications WHERE Status = 'UNREAD' ORDER BY Id DESC"
             dt = Database.ExecuteDataTable(sql)
         Else
-            sql = "SELECT n.Id, n.Title, n.Message, n.CreatedAt FROM Notifications n INNER JOIN Vehicles v ON n.VehicleId = v.Id WHERE n.Status = 'UNREAD' AND v.EmployeeId = @EmpId ORDER BY n.Id DESC"
+            sql = "SELECT n.Id, n.Title, n.Message, n.CreatedAt FROM Notifications n INNER JOIN Vehicles v ON n.VehicleId = v.Id WHERE n.Status = 'UNREAD' AND v.EmployeeId = @EmpId AND (v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL) ORDER BY n.Id DESC"
             dt = Database.ExecuteDataTable(sql, New SQLiteParameter("@EmpId", empId))
         End If
 
@@ -550,15 +606,15 @@ Public Class DefaultPage
         If role = "SuperAdmin" Then
             Database.ExecuteNonQuery("UPDATE Notifications SET Status = 'READ' WHERE Status = 'UNREAD'")
         Else
-            Database.ExecuteNonQuery("UPDATE Notifications SET Status = 'READ' WHERE Status = 'UNREAD' AND VehicleId IN (SELECT Id FROM Vehicles WHERE EmployeeId = " & empId & ")")
+            Database.ExecuteNonQuery("UPDATE Notifications SET Status = 'READ' WHERE Status = 'UNREAD' AND VehicleId IN (SELECT Id FROM Vehicles WHERE EmployeeId = " & empId & " AND (IsDecommissioned = 0 OR IsDecommissioned IS NULL))")
         End If
     End Sub
 
-    ' â”€â”€ Reports Export Handling â”€â”€
+    ' ── Reports Export Handling ──
 
     Protected Sub btnExportPDF_Click(ByVal sender As Object, ByVal e As EventArgs)
         Try
-            Dim pdfBytes As Byte() = ReportGenerator.GenerateCompliancePdf(0)
+            Dim pdfBytes As Byte() = ReportGenerator.GenerateCompliancePdf(Nothing)
             Dim fileName As String = "IOCL_Compliance_Report_" & DateTime.Now.ToString("yyyyMMdd_HHmm") & ".pdf"
             Response.Clear()
             Response.ContentType = "application/pdf"
@@ -574,7 +630,7 @@ Public Class DefaultPage
 
     Protected Sub btnExportExcel_Click(ByVal sender As Object, ByVal e As EventArgs)
         Try
-            Dim xlsBytes As Byte() = ReportGenerator.GenerateComplianceExcel(0)
+            Dim xlsBytes As Byte() = ReportGenerator.GenerateComplianceExcel(Nothing)
             Dim fileName As String = "IOCL_Compliance_Report_" & DateTime.Now.ToString("yyyyMMdd_HHmm") & ".xls"
             Response.Clear()
             Response.ContentType = "application/vnd.ms-excel"
@@ -585,29 +641,6 @@ Public Class DefaultPage
             Response.End()
         Catch ex As Exception
             ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Excel export failed: " & Server.HtmlEncode(ex.Message) & "');", True)
-        End Try
-    End Sub
-
-    Protected Sub btnTriggerEmails_Click(ByVal sender As Object, ByVal e As EventArgs)
-        If Session("Role").ToString() <> "SuperAdmin" Then
-            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Access denied.');", True)
-            Return
-        End If
-        Try
-            ' Run compliance check + send emails asynchronously
-            Dim t As New System.Threading.Thread(Sub()
-                Try
-                    Compliance.RunComplianceCheck()
-                    Compliance.SendDailyDigest()
-                Catch ex As Exception
-                    Console.WriteLine("[TriggerEmail] Error: " & ex.Message)
-                End Try
-            End Sub)
-            t.IsBackground = True
-            t.Start()
-            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Compliance scan and emails triggered in background. Admins will receive alerts shortly.');", True)
-        Catch ex As Exception
-            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Trigger failed: " & Server.HtmlEncode(ex.Message) & "');", True)
         End Try
     End Sub
 

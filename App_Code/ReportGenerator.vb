@@ -3,20 +3,16 @@ Imports System.IO
 Imports System.Data
 Imports System.Data.SQLite
 Imports System.Text
+Imports System.Collections.Generic
 Imports iTextSharp.text
 Imports iTextSharp.text.pdf
 
 Public Class ReportGenerator
 
     Private Shared ReadOnly LicenseNames As New Dictionary(Of String, String)() From {
-        {"ROAD_PERMIT", "Road Permit (By RTO)"},
-        {"AGE_DETERMINATION", "Date of Manufacture / Age Determination"},
-        {"PUC", "Pollution Under Control (PUC)"},
-        {"FITNESS", "Fitness License (By RTO)"},
-        {"EXPLOSIVE", "Explosive License"},
-        {"GREEN_CARD", "Green Card"},
+        {"RC", "Registration Certificate (RC)"},
         {"INSURANCE", "Vehicle Insurance"},
-        {"CALIBRATION", "Calibration Certificate"}
+        {"PUCC", "Pollution Under Control (PUCC)"}
     }
 
     Private Shared Function GetLicenseName(ByVal key As String) As String
@@ -64,11 +60,11 @@ Public Class ReportGenerator
         Dim sql As String = "SELECT v.VehicleNumber, v.VehicleType, v.OverallStatus, v.Department As DeptName, " &
                            "r.LicenseType, r.LicenseNumber, r.IssuingAuthority, r.IssueDate, r.ExpiryDate, r.Status " &
                            "FROM ComplianceRecords r " &
-                           "INNER JOIN Vehicles v ON r.VehicleId = v.Id"
+                           "INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE (v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL)"
 
         Dim parameters As New List(Of SQLiteParameter)()
         If Not String.IsNullOrEmpty(department) AndAlso department <> "0" Then
-            sql &= " WHERE v.Department = @Dept"
+            sql &= " AND v.Department = @Dept"
             parameters.Add(New SQLiteParameter("@Dept", department))
         End If
         sql &= " ORDER BY v.VehicleNumber, r.LicenseType"
@@ -105,7 +101,7 @@ Public Class ReportGenerator
             hdrCell.Border = Rectangle.NO_BORDER
             hdrTable.AddCell(hdrCell)
 
-            Dim subCell As New PdfPCell(New Phrase("Fleet Compliance Status Report  |  Generated: " & DateTime.Now.ToString("dd/MM/yyyy HH:mm"), fontSub))
+            Dim subCell As New PdfPCell(New Phrase("Vehicle Compliance Status Report  |  Generated: " & DateTime.Now.ToString("dd/MM/yyyy HH:mm"), fontSub))
             subCell.Padding = 6
             subCell.Border = Rectangle.BOTTOM_BORDER
             subCell.BorderColor = ioclOrange
@@ -130,9 +126,8 @@ Public Class ReportGenerator
                 Dim status As String = row("Status").ToString()
                 Dim statusFont As Font = fontCell
                 Select Case status
-                    Case "EXPIRED" : statusFont = fontRed
-                    Case "HIGH_CRITICAL", "MEDIUM_CRITICAL" : statusFont = fontOrange
-                    Case "WARNING" : statusFont = fontAmber
+                    Case "Expired" : statusFont = fontRed
+                    Case "Non-Compliant" : statusFont = fontOrange
                 End Select
 
                 MakeCell(tbl, row("VehicleNumber").ToString(), fontCellBold, bg)
@@ -209,9 +204,8 @@ Public Class ReportGenerator
                     Dim status As String = row("Status").ToString()
                     Dim statusFont As Font = fontCell
                     Select Case status
-                        Case "EXPIRED" : statusFont = fontRed
-                        Case "HIGH_CRITICAL", "MEDIUM_CRITICAL" : statusFont = fontOrange
-                        Case "WARNING" : statusFont = fontAmber
+                        Case "Expired" : statusFont = fontRed
+                        Case "Non-Compliant" : statusFont = fontOrange
                     End Select
 
                     Dim expiry As String = If(row("ExpiryDate") Is DBNull.Value, "", row("ExpiryDate").ToString())
@@ -243,11 +237,11 @@ Public Class ReportGenerator
         Dim sql As String = "SELECT v.VehicleNumber, v.VehicleType, v.OverallStatus, v.Department As DeptName, " &
                            "r.LicenseType, r.LicenseNumber, r.IssuingAuthority, r.IssueDate, r.ExpiryDate, r.Status " &
                            "FROM ComplianceRecords r " &
-                           "INNER JOIN Vehicles v ON r.VehicleId = v.Id"
+                           "INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE (v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL)"
 
         Dim parameters As New List(Of SQLiteParameter)()
         If Not String.IsNullOrEmpty(department) AndAlso department <> "0" Then
-            sql &= " WHERE v.Department = @Dept"
+            sql &= " AND v.Department = @Dept"
             parameters.Add(New SQLiteParameter("@Dept", department))
         End If
         sql &= " ORDER BY v.VehicleNumber, r.LicenseType"
@@ -256,7 +250,7 @@ Public Class ReportGenerator
 
         Dim sb As New StringBuilder()
         sb.AppendLine("<html><head><meta charset='utf-8'/></head><body>")
-        sb.AppendLine("<h2>IOCL Panipat Refinery - Fleet Compliance Report</h2>")
+        sb.AppendLine("<h2>IOCL Panipat Refinery - Vehicle Compliance Report</h2>")
         sb.AppendLine("<p>Generated: " & DateTime.Now.ToString("dd/MM/yyyy HH:mm") & "</p>")
         sb.AppendLine("<table border='1' cellpadding='4' cellspacing='0' style='border-collapse:collapse;font-family:Arial;font-size:10px;'>")
         sb.AppendLine("<tr style='background:#7F1D1D;color:#fff;font-weight:bold;'>")
@@ -272,9 +266,8 @@ Public Class ReportGenerator
             Dim status As String = row("Status").ToString()
             Dim statusColor As String = "#1E293B"
             Select Case status
-                Case "EXPIRED" : statusColor = "#DC2626"
-                Case "HIGH_CRITICAL", "MEDIUM_CRITICAL" : statusColor = "#EA580C"
-                Case "WARNING" : statusColor = "#D97706"
+                Case "Expired" : statusColor = "#DC2626"
+                Case "Non-Compliant" : statusColor = "#EA580C"
             End Select
             Dim expiry As String = If(row("ExpiryDate") Is DBNull.Value, "", row("ExpiryDate").ToString())
 

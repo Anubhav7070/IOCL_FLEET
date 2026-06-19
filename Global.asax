@@ -5,9 +5,13 @@
         ' Initialize database schema & seed data
         Try
             Database.InitializeDatabase()
+            Database.EnsureSettingsTable()
             Database.EnsureOtpTokensTable()   ' Migrate existing DBs to add OtpTokens table
             Database.EnsureOwnershipTypeColumn()
+            Database.EnsureOwnerDepartmentColumn()
+            Database.EnsureVehicleAllocationsTable()
             Database.EnsureLastAlertSentColumn()
+            Database.EnsureIsDecommissionedColumn()
             Seeder.Seed()
         Catch ex As Exception
             System.Diagnostics.Debug.WriteLine("[STARTUP] DB init error: " & ex.Message)
@@ -35,4 +39,5 @@
             System.Diagnostics.Debug.WriteLine("[APP ERROR] " & ex.ToString())
         End If
     End Sub
+    ' Touch to recycle app pool
 </script>

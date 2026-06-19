@@ -6,16 +6,6 @@
 
 <asp:Content ID="Content3" ContentPlaceHolderID="MainContent" runat="server">
     <div class="space-y-6">
-        <!-- Title bar -->
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 rounded-xl bg-slate-900 border border-slate-800 text-white p-6 shadow-md shadow-slate-900/10">
-            <div>
-                <h2 class="text-xl font-bold tracking-wide uppercase">Historical Renewal Logs</h2>
-                <p class="text-xs text-slate-400 mt-1">
-                    Review history of vehicle document updates, old and new certifications, and operator comments.
-                </p>
-            </div>
-        </div>
-
         <!-- Filter Control Panel -->
         <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col md:flex-row md:items-center gap-4">
             <div class="relative flex-1">

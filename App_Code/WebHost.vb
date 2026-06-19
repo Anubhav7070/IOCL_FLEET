@@ -67,7 +67,39 @@ Public Class HttpListenerWorkerRequest
         If Not path.StartsWith("/") Then
             path = "/" & path
         End If
+
+        Dim dotIndex As Integer = -1
+        For Each ext As String In New String() {".aspx/", ".ashx/", ".asmx/", ".axd/"}
+            Dim idx As Integer = path.IndexOf(ext, StringComparison.OrdinalIgnoreCase)
+            If idx >= 0 Then
+                dotIndex = idx + ext.Length - 1
+                Exit For
+            End If
+        Next
+
+        If dotIndex >= 0 Then
+            path = path.Substring(0, dotIndex)
+        End If
+
         Return path.Replace("/"c, "\"c)
+    End Function
+
+    Public Overrides Function GetPathInfo() As String
+        Dim path As String = _context.Request.Url.LocalPath
+        Dim dotIndex As Integer = -1
+        For Each ext As String In New String() {".aspx/", ".ashx/", ".asmx/", ".axd/"}
+            Dim idx As Integer = path.IndexOf(ext, StringComparison.OrdinalIgnoreCase)
+            If idx >= 0 Then
+                dotIndex = idx + ext.Length - 1
+                Exit For
+            End If
+        Next
+
+        If dotIndex >= 0 Then
+            Return path.Substring(dotIndex)
+        Else
+            Return String.Empty
+        End If
     End Function
 
     Public Overrides Function GetFilePathTranslated() As String
@@ -208,10 +240,10 @@ Public Class ASPNetHost
         _physicalDir = physicalDir
 
         _listener = New HttpListener()
-        _listener.Prefixes.Add("http://localhost:" & port & "/")
+        _listener.Prefixes.Add("http://+:" & port & "/")
         _listener.Start()
 
-        Console.WriteLine("Server started successfully on http://localhost:" & port & "/")
+        Console.WriteLine("Server started successfully on http://+:" & port & "/")
         Console.WriteLine("Press Ctrl+C to terminate.")
 
         ThreadPool.QueueUserWorkItem(AddressOf Listen)
@@ -267,7 +299,7 @@ Public Class ASPNetHost
     Private Function IsStaticFile(ByVal path As String) As Boolean
         Dim ext As String = System.IO.Path.GetExtension(path).ToLower()
         If String.IsNullOrEmpty(ext) Then Return False
-        Return ext <> ".aspx" AndAlso ext <> ".ashx" AndAlso ext <> ".asmx"
+        Return ext <> ".aspx" AndAlso ext <> ".ashx" AndAlso ext <> ".asmx" AndAlso ext <> ".axd"
     End Function
 
     Private Sub ServeStaticFile(ByVal context As HttpListenerContext, ByVal urlPath As String)

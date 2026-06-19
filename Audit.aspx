@@ -5,20 +5,6 @@
 
 <asp:Content ID="Content2" ContentPlaceHolderID="MainContent" runat="server">
     <div class="space-y-6 page-enter font-sans max-w-7xl mx-auto">
-        <!-- Header -->
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-xl bg-slate-900 border border-slate-800 text-white p-6 shadow-md shadow-slate-900/10">
-            <div>
-                <h2 class="text-xl font-bold tracking-wide uppercase">Refinery Security Audit Trail</h2>
-                <p class="text-xs text-slate-400 mt-1">
-                    Real-time log of administrative database mutations and security clearances.
-                </p>
-            </div>
-            <asp:LinkButton ID="lnkRefresh" runat="server" OnClick="btnFilter_Click" class="flex items-center gap-1.5 rounded bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow transition-all duration-200 focus:outline-none">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8.89M9 11l3 3m0 0l3-3m-3 3V2" /></svg>
-                <span>Refresh</span>
-            </asp:LinkButton>
-        </div>
-
         <!-- Filters Section -->
         <div class="flex flex-col sm:flex-row gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div class="relative flex-1">
@@ -36,6 +22,10 @@
             <div class="flex items-center gap-2">
                 <asp:Button ID="btnFilter" runat="server" Text="Filter Audit" OnClick="btnFilter_Click" CssClass="rounded bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow cursor-pointer transition-all" />
                 <asp:Button ID="btnReset" runat="server" Text="Reset" OnClick="btnReset_Click" CssClass="rounded border border-slate-250 hover:bg-slate-50 px-4 py-2 text-xs font-bold text-slate-500 cursor-pointer transition-all" />
+                <asp:LinkButton ID="lnkRefresh" runat="server" OnClick="btnFilter_Click" class="flex items-center gap-1.5 rounded bg-slate-100 hover:bg-slate-200 border border-slate-250 px-4 py-2 text-xs font-bold text-slate-600 shadow-sm transition-all duration-200 focus:outline-none shrink-0 justify-center">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8.89M9 11l3 3m0 0l3-3m-3 3V2" /></svg>
+                    <span>Refresh</span>
+                </asp:LinkButton>
             </div>
         </div>
 

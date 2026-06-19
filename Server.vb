@@ -11,7 +11,7 @@ Public Class Server
 
     Public Shared Sub Main()
         Console.WriteLine("=================================================")
-        Console.WriteLine("IOCL Fleet Compliance - Local Web Forms Server")
+        Console.WriteLine("IOCL Vehicle Management - Local Web Forms Server")
         Console.WriteLine("=================================================")
 
         _physicalDir = AppDomain.CurrentDomain.BaseDirectory

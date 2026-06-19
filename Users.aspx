@@ -5,28 +5,21 @@
 
 <asp:Content ID="Content2" ContentPlaceHolderID="MainContent" runat="server">
     <div class="space-y-6 page-enter font-sans max-w-7xl mx-auto">
-        <!-- Header Block -->
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-xl bg-slate-900 border border-slate-800 text-white p-6 shadow-md shadow-slate-900/10">
-            <div>
-                <h2 class="text-xl font-bold tracking-wide uppercase">Refinery User Directory</h2>
-                <p class="text-xs text-slate-400 mt-1">
-                    Manage system operators, access key permissions, and department scopes.
-                </p>
-            </div>
-
-            <asp:Button ID="btnNewEmp" runat="server" Text="Create Account" OnClick="btnNewEmp_Click" CssClass="flex items-center gap-1.5 rounded bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-xs font-bold text-white shadow transition-all duration-200 cursor-pointer" />
-        </div>
-
         <!-- Filter Panel -->
         <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-            <div class="flex flex-wrap items-end gap-4">
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Search Operator</label>
-                    <asp:TextBox ID="txtEmpSearch" runat="server" placeholder="Name or Employee Number" CssClass="w-64 rounded border border-slate-200 py-1.5 px-3 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"></asp:TextBox>
+            <div class="flex flex-wrap items-end justify-between gap-4">
+                <div class="flex flex-wrap items-end gap-4">
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Search Operator</label>
+                        <asp:TextBox ID="txtEmpSearch" runat="server" placeholder="Name or Employee Number" CssClass="w-64 rounded border border-slate-200 py-1.5 px-3 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"></asp:TextBox>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <asp:Button ID="btnFilter" runat="server" Text="Filter Directory" OnClick="btnFilter_Click" CssClass="rounded bg-blue-600 hover:bg-blue-700 px-4 py-1.5 text-xs font-bold text-white shadow cursor-pointer transition-all" />
+                        <asp:Button ID="btnReset" runat="server" Text="Reset" OnClick="btnReset_Click" CssClass="rounded border border-slate-250 hover:bg-slate-50 px-4 py-1.5 text-xs font-bold text-slate-500 cursor-pointer transition-all" />
+                    </div>
                 </div>
-                <div class="flex items-center gap-2">
-                    <asp:Button ID="btnFilter" runat="server" Text="Filter Directory" OnClick="btnFilter_Click" CssClass="rounded bg-blue-600 hover:bg-blue-700 px-4 py-1.5 text-xs font-bold text-white shadow cursor-pointer transition-all" />
-                    <asp:Button ID="btnReset" runat="server" Text="Reset" OnClick="btnReset_Click" CssClass="rounded border border-slate-250 hover:bg-slate-50 px-4 py-1.5 text-xs font-bold text-slate-500 cursor-pointer transition-all" />
+                <div>
+                    <asp:Button ID="btnNewEmp" runat="server" Text="Create Account" OnClick="btnNewEmp_Click" CssClass="rounded bg-blue-600 hover:bg-blue-700 px-4 py-1.5 text-xs font-bold text-white shadow transition-all duration-200 cursor-pointer focus:outline-none" />
                 </div>
             </div>
         </div>

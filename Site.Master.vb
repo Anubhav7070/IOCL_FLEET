@@ -1,4 +1,4 @@
-﻿Imports System
+Imports System
 Imports System.Web
 Imports System.Web.UI
 Imports System.Data.SQLite
@@ -30,11 +30,35 @@ Public Class Site
     End Sub
 
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As EventArgs) Handles Me.Load
+        If Not IsPostBack Then
+            Database.IncrementVisitCount()
+        End If
+        lblVisitCount.Text = Database.GetVisitCount().ToString()
+
         If Session("EmployeeId") IsNot Nothing Then
             Dim name As String = Session("EmployeeName").ToString()
             Dim role As String = Session("Role").ToString()
             
-            lblUser.Text = name
+            Dim empNum As String = ""
+            If Session("EmpNumber") IsNot Nothing Then
+                empNum = Session("EmpNumber").ToString()
+            Else
+                Try
+                    Dim sql As String = "SELECT EmpNumber FROM Employee WHERE EmployeeId = @Id"
+                    Dim obj As Object = Database.ExecuteScalar(sql, New SQLiteParameter("@Id", Convert.ToInt32(Session("EmployeeId"))))
+                    If obj IsNot Nothing Then
+                        empNum = obj.ToString()
+                        Session("EmpNumber") = empNum
+                    End If
+                Catch
+                End Try
+            End If
+
+            If Not String.IsNullOrEmpty(empNum) Then
+                lblUser.Text = name & " (" & empNum & ")"
+            Else
+                lblUser.Text = name
+            End If
             lblRole.Text = role.Replace("_", " ")
             
             ' Compute initials for the avatar bubble

@@ -87,10 +87,10 @@ Public Class Database
                     ExecuteSql(conn, "CREATE TABLE IF NOT EXISTS Documents (Id INTEGER PRIMARY KEY AUTOINCREMENT, FileName TEXT NOT NULL, FilePath TEXT NOT NULL, FileType TEXT, FileSize INTEGER, UploadedBy INTEGER, CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(UploadedBy) REFERENCES Employee(EmployeeId) ON DELETE SET NULL);")
 
                     ' 4. Vehicles Table
-                    ExecuteSql(conn, "CREATE TABLE IF NOT EXISTS Vehicles (Id INTEGER PRIMARY KEY AUTOINCREMENT, VehicleNumber TEXT UNIQUE NOT NULL, VehicleType TEXT NOT NULL, Department TEXT, DriverName TEXT, VendorName TEXT, QrCodeUrl TEXT, OverallStatus TEXT DEFAULT 'FULLY_COMPLIANT', DocumentId INTEGER, LastUpdatedBy TEXT, LastUpdatedTimestamp TEXT, IsVerified INTEGER DEFAULT 0, VerifiedBy TEXT, EmployeeId INTEGER NOT NULL, OwnershipType TEXT DEFAULT 'Contractual', CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP, UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(DocumentId) REFERENCES Documents(Id) ON DELETE SET NULL, FOREIGN KEY(EmployeeId) REFERENCES Employee(EmployeeId) ON DELETE CASCADE);")
+                    ExecuteSql(conn, "CREATE TABLE IF NOT EXISTS Vehicles (Id INTEGER PRIMARY KEY AUTOINCREMENT, VehicleNumber TEXT UNIQUE NOT NULL, VehicleType TEXT NOT NULL, Department TEXT DEFAULT 'PR - Human Resources', OwnerDepartment TEXT DEFAULT 'PR - Human Resources', DriverName TEXT, VendorName TEXT, OverallStatus TEXT DEFAULT 'Compliant', DocumentId INTEGER, LastUpdatedBy TEXT, LastUpdatedTimestamp TEXT, IsVerified INTEGER DEFAULT 0, VerifiedBy TEXT, EmployeeId INTEGER NOT NULL, OwnershipType TEXT DEFAULT 'Contractual', CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP, UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(DocumentId) REFERENCES Documents(Id) ON DELETE SET NULL, FOREIGN KEY(EmployeeId) REFERENCES Employee(EmployeeId) ON DELETE CASCADE);")
 
                     ' 5. ComplianceRecords Table
-                    ExecuteSql(conn, "CREATE TABLE IF NOT EXISTS ComplianceRecords (Id INTEGER PRIMARY KEY AUTOINCREMENT, VehicleId INTEGER NOT NULL, LicenseType TEXT NOT NULL, LicenseNumber TEXT, IssuingAuthority TEXT, IssueDate TEXT, ExpiryDate TEXT, Status TEXT DEFAULT 'ACTIVE', DocumentId INTEGER, LastUpdatedBy TEXT, LastUpdatedTimestamp TEXT, IsVerified INTEGER DEFAULT 0, VerifiedBy TEXT, LastAlertSent TEXT, CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP, UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(VehicleId) REFERENCES Vehicles(Id) ON DELETE CASCADE, FOREIGN KEY(DocumentId) REFERENCES Documents(Id) ON DELETE SET NULL);")
+                    ExecuteSql(conn, "CREATE TABLE IF NOT EXISTS ComplianceRecords (Id INTEGER PRIMARY KEY AUTOINCREMENT, VehicleId INTEGER NOT NULL, LicenseType TEXT NOT NULL, LicenseNumber TEXT, IssuingAuthority TEXT, IssueDate TEXT, ExpiryDate TEXT, Status TEXT DEFAULT 'Compliant', DocumentId INTEGER, LastUpdatedBy TEXT, LastUpdatedTimestamp TEXT, IsVerified INTEGER DEFAULT 0, VerifiedBy TEXT, LastAlertSent TEXT, CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP, UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(VehicleId) REFERENCES Vehicles(Id) ON DELETE CASCADE, FOREIGN KEY(DocumentId) REFERENCES Documents(Id) ON DELETE SET NULL);")
 
                     ' 6. RenewalHistories Table
                     ExecuteSql(conn, "CREATE TABLE IF NOT EXISTS RenewalHistories (Id INTEGER PRIMARY KEY AUTOINCREMENT, VehicleId INTEGER NOT NULL, ComplianceRecordId INTEGER NOT NULL, LicenseType TEXT NOT NULL, OldExpiryDate TEXT, NewExpiryDate TEXT, OldDocumentId INTEGER, NewDocumentId INTEGER, RenewedBy INTEGER, RenewedAt TEXT DEFAULT CURRENT_TIMESTAMP, Remarks TEXT, FOREIGN KEY(VehicleId) REFERENCES Vehicles(Id) ON DELETE CASCADE, FOREIGN KEY(ComplianceRecordId) REFERENCES ComplianceRecords(Id) ON DELETE CASCADE, FOREIGN KEY(OldDocumentId) REFERENCES Documents(Id) ON DELETE SET NULL, FOREIGN KEY(NewDocumentId) REFERENCES Documents(Id) ON DELETE SET NULL, FOREIGN KEY(RenewedBy) REFERENCES Employee(EmployeeId) ON DELETE SET NULL);")
@@ -106,6 +106,9 @@ Public Class Database
 
                     ' 10. OtpTokens Table (Forgot Password + Email Verification)
                     ExecuteSql(conn, "CREATE TABLE IF NOT EXISTS OtpTokens (Id INTEGER PRIMARY KEY AUTOINCREMENT, EmployeeId INTEGER NOT NULL, Token TEXT NOT NULL, TokenType TEXT NOT NULL CHECK(TokenType IN ('FORGOT_PASSWORD','EMAIL_VERIFY')), ExpiresAt TEXT NOT NULL, IsUsed INTEGER NOT NULL DEFAULT 0, CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(EmployeeId) REFERENCES Employee(EmployeeId) ON DELETE CASCADE);")
+
+                    ' 11. VehicleAllocations Table
+                    ExecuteSql(conn, "CREATE TABLE IF NOT EXISTS VehicleAllocations (Id INTEGER PRIMARY KEY AUTOINCREMENT, VehicleId INTEGER NOT NULL, Department TEXT NOT NULL, StartDate TEXT NOT NULL, EndDate TEXT NOT NULL, AllocatedBy INTEGER, CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP, Status TEXT DEFAULT 'ACTIVE', FOREIGN KEY(VehicleId) REFERENCES Vehicles(Id) ON DELETE CASCADE, FOREIGN KEY(AllocatedBy) REFERENCES Employee(EmployeeId) ON DELETE SET NULL);")
 
                     trans.Commit()
                 Catch ex As Exception
@@ -132,11 +135,57 @@ Public Class Database
         End Try
     End Sub
 
+    Public Shared Sub EnsureOwnerDepartmentColumn()
+        Try
+            ExecuteNonQuery("ALTER TABLE Vehicles ADD COLUMN OwnerDepartment TEXT DEFAULT 'PR - Human Resources';")
+        Catch ex As Exception
+            ' Column already exists
+        End Try
+    End Sub
+
+    Public Shared Sub EnsureVehicleAllocationsTable()
+        ExecuteNonQuery("CREATE TABLE IF NOT EXISTS VehicleAllocations (Id INTEGER PRIMARY KEY AUTOINCREMENT, VehicleId INTEGER NOT NULL, Department TEXT NOT NULL, StartDate TEXT NOT NULL, EndDate TEXT NOT NULL, AllocatedBy INTEGER, CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP, Status TEXT DEFAULT 'ACTIVE', FOREIGN KEY(VehicleId) REFERENCES Vehicles(Id) ON DELETE CASCADE, FOREIGN KEY(AllocatedBy) REFERENCES Employee(EmployeeId) ON DELETE SET NULL);")
+    End Sub
+
     Public Shared Sub EnsureLastAlertSentColumn()
         Try
             ExecuteNonQuery("ALTER TABLE ComplianceRecords ADD COLUMN LastAlertSent TEXT;")
         Catch ex As Exception
             ' Column already exists
+        End Try
+    End Sub
+
+    Public Shared Sub EnsureIsDecommissionedColumn()
+        Try
+            ExecuteNonQuery("ALTER TABLE Vehicles ADD COLUMN IsDecommissioned INTEGER DEFAULT 0;")
+        Catch ex As Exception
+            ' Column already exists
+        End Try
+    End Sub
+
+    Public Shared Sub EnsureSettingsTable()
+        ExecuteNonQuery("CREATE TABLE IF NOT EXISTS Settings (Key TEXT PRIMARY KEY, Value TEXT);")
+    End Sub
+
+    Public Shared Function GetVisitCount() As Integer
+        Try
+            Dim countObj As Object = ExecuteScalar("SELECT Value FROM Settings WHERE Key='VisitCount'")
+            If countObj Is Nothing OrElse Convert.IsDBNull(countObj) Then
+                ExecuteNonQuery("INSERT INTO Settings (Key, Value) VALUES ('VisitCount', '1')")
+                Return 1
+            Else
+                Return Convert.ToInt32(countObj)
+            End If
+        Catch
+            Return 0
+        End Try
+    End Function
+
+    Public Shared Sub IncrementVisitCount()
+        Try
+            Dim current As Integer = GetVisitCount()
+            ExecuteNonQuery("UPDATE Settings SET Value = @Val WHERE Key='VisitCount'", New SQLiteParameter("@Val", (current + 1).ToString()))
+        Catch
         End Try
     End Sub
 

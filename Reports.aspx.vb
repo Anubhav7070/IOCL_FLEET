@@ -1,4 +1,4 @@
-﻿Imports System
+Imports System
 Imports System.Data
 Imports System.Data.SQLite
 
@@ -28,9 +28,9 @@ Public Class ReportsPage
     End Sub
 
     Private Sub LoadStats()
-        lblTotal.Text = Database.ExecuteScalar("SELECT COUNT(*) FROM Vehicles").ToString()
-        lblTotalLicenses.Text = Database.ExecuteScalar("SELECT COUNT(*) FROM ComplianceRecords").ToString()
-        Dim expiring As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT COUNT(*) FROM ComplianceRecords WHERE Status IN ('EXPIRED','HIGH_CRITICAL','MEDIUM_CRITICAL','WARNING')"))
+        lblTotal.Text = Database.ExecuteScalar("SELECT COUNT(*) FROM Vehicles WHERE (IsDecommissioned = 0 OR IsDecommissioned IS NULL)").ToString()
+        lblTotalLicenses.Text = Database.ExecuteScalar("SELECT COUNT(*) FROM ComplianceRecords r INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE (v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL)").ToString()
+        Dim expiring As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT COUNT(*) FROM ComplianceRecords r INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE r.Status IN ('EXPIRED','HIGH_CRITICAL','MEDIUM_CRITICAL','WARNING') AND (v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL)"))
         lblExpiring.Text = expiring.ToString()
 
         ' Load department breakdown dynamically
@@ -39,7 +39,7 @@ Public Class ReportsPage
             "COALESCE(CAST(SUM(CASE WHEN r.Status = 'ACTIVE' OR r.Status = 'WARNING' THEN 1 ELSE 0 END) * 100.0 / COUNT(r.Id) AS REAL), 100.0) As ComplianceScore, " &
             "COUNT(DISTINCT v.Id) As VehicleCount " &
             "FROM Employee e " &
-            "LEFT JOIN Vehicles v ON e.EmployeeId = v.EmployeeId " &
+            "LEFT JOIN Vehicles v ON e.EmployeeId = v.EmployeeId AND (v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL) " &
             "LEFT JOIN ComplianceRecords r ON v.Id = r.VehicleId " &
             "WHERE e.Department IS NOT NULL AND e.Department <> '' " &
             "GROUP BY e.Department " &

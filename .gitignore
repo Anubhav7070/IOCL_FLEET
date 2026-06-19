@@ -30,3 +30,7 @@ Desktop.ini
 
 # nuget binary (large)
 nuget.exe
+
+# Scratch folder (local dev scripts and tests)
+scratch/
+

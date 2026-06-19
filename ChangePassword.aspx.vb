@@ -95,11 +95,7 @@ Public Class ChangePasswordPage
             Else
                 ' No email on record — skip OTP and go straight to portal
                 Session("VerifyEmailPending") = False
-                If Session("Role").ToString() = "GATEMAN" Then
-                    Response.Redirect("~/Gate.aspx", False)
-                Else
-                    Response.Redirect("~/Default.aspx", False)
-                End If
+                Response.Redirect("~/Default.aspx", False)
                 HttpContext.Current.ApplicationInstance.CompleteRequest()
             End If
             ' ────────────────────────────────────────────────────────────────────

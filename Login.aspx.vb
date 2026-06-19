@@ -1,4 +1,4 @@
-﻿Imports System
+Imports System
 Imports System.Data
 Imports System.Data.SQLite
 Imports BCrypt.Net
@@ -47,10 +47,10 @@ Public Class Login
             End If
 
             Dim row As DataRow = dt.Rows(0)
-            Dim storedHash As String = row("Password").ToString()
 
-            If Not BCrypt.Net.BCrypt.Verify(password, storedHash) Then
-                ShowError("Invalid credentials. Please check your password.")
+            ' Validate credentials against the Active Directory Authentication Service
+            If Not ActiveDirectoryService.Authenticate(input, password) Then
+                ShowError("Invalid credentials. AD Authentication failed.")
                 Return
             End If
 
@@ -61,6 +61,7 @@ Public Class Login
             Session("Role") = row("Role").ToString()
             Session("Department") = row("Department").ToString()
             Session("EmailId") = row("EmailId").ToString()
+            Session("EmpNumber") = row("EmpNumber").ToString()
 
             If password = row("EmpNumber").ToString() Then
                 Session("MustChangePassword") = True
@@ -75,14 +76,9 @@ Public Class Login
             Dim sqlLoginAudit As String = "INSERT INTO AuditLogs (UserId, Username, Action, Description, IpAddress, Timestamp) VALUES (" & userId & ", @Username, 'USER_LOGIN', 'User logged in successfully.', @IP, datetime('now'));"
             Database.ExecuteNonQuery(sqlLoginAudit, New SQLiteParameter("@Username", username), New SQLiteParameter("@IP", Request.UserHostAddress))
 
-            ' Redirect GATEMAN to Gate Entry, others to Dashboard
-            If Session("Role").ToString() = "GATEMAN" Then
-                Response.Redirect("~/Gate.aspx", False)
-                HttpContext.Current.ApplicationInstance.CompleteRequest()
-            Else
-                Response.Redirect("~/Default.aspx", False)
-                HttpContext.Current.ApplicationInstance.CompleteRequest()
-            End If
+            ' Redirect all users to Dashboard
+            Response.Redirect("~/Default.aspx", False)
+            HttpContext.Current.ApplicationInstance.CompleteRequest()
 
         Catch ex As Exception
             ShowError("An error occurred during authentication: " & ex.Message)
