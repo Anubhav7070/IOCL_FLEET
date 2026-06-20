@@ -162,8 +162,8 @@ Public Class VehiclesPage
             lblAllocatedEmployee.Text = allocRow("EmployeeName").ToString() & " (" & allocRow("EmpNumber").ToString() & ")"
             lblAllocatedDept.Text = allocRow("Department").ToString()
         Else
-            lblAllocatedEmployee.Text = "Not Allocated (Default HR Ownership)"
-            lblAllocatedDept.Text = "PR - Human Resources"
+            lblAllocatedEmployee.Text = "Not Allocated (Owner: " & row("CreatorName").ToString() & ")"
+            lblAllocatedDept.Text = row("OwnerDepartment").ToString()
         End If
 
         Dim isVerified As Boolean = Convert.ToBoolean(row("IsVerified"))
