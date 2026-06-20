@@ -140,7 +140,7 @@ Public Class VehiclesPage
 
     Private Sub LoadVehicleDetails(ByVal vehicleId As Integer)
         Dim sql As String = "SELECT v.*, e.EmployeeName As CreatorName, e.EmpNumber As CreatorNumber FROM Vehicles v " &
-                            "INNER JOIN Employee e ON v.EmployeeId = e.EmployeeId " &
+                            "INNER JOIN Employee e ON v.CreatedBy = e.EmployeeId " &
                             "WHERE v.Id = @VehId LIMIT 1"
         
         Dim dt As DataTable = Database.ExecuteDataTable(sql, New SQLiteParameter("@VehId", vehicleId))
@@ -162,7 +162,7 @@ Public Class VehiclesPage
             lblAllocatedEmployee.Text = allocRow("EmployeeName").ToString() & " (" & allocRow("EmpNumber").ToString() & ")"
             lblAllocatedDept.Text = allocRow("Department").ToString()
         Else
-            lblAllocatedEmployee.Text = "Not Allocated (Owner: " & row("CreatorName").ToString() & ")"
+            lblAllocatedEmployee.Text = row("CreatorName").ToString() & " (" & row("CreatorNumber").ToString() & ") [Owner]"
             lblAllocatedDept.Text = row("OwnerDepartment").ToString()
         End If
 
@@ -177,7 +177,7 @@ Public Class VehiclesPage
             btnVerifyVehicle.Visible = (Session("Role").ToString() = "SuperAdmin")
         End If
 
-        Dim creatorId As Integer = Convert.ToInt32(row("EmployeeId"))
+        Dim creatorId As Integer = Convert.ToInt32(row("CreatedBy"))
         Dim loggedInEmpId As Integer = Convert.ToInt32(Session("EmployeeId"))
         btnDecommission.Visible = (Session("Role").ToString() = "SuperAdmin" OrElse creatorId = loggedInEmpId)
         btnOpenEdit.Visible = (Session("Role").ToString() = "SuperAdmin")
