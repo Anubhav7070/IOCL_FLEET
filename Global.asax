@@ -12,6 +12,7 @@
             Database.EnsureDocumentHistoryTable()
             Database.EnsureLastAlertSentColumn()
             Database.EnsureIsDecommissionedColumn()
+            Database.DropUselessTables()
             Seeder.Seed()
         Catch ex As Exception
             System.Diagnostics.Debug.WriteLine("[STARTUP] DB init error: " & ex.Message)

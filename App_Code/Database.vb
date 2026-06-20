@@ -101,9 +101,6 @@ Public Class Database
                     ' 8. AuditLogs Table
                     ExecuteSql(conn, "CREATE TABLE IF NOT EXISTS AuditLogs (Id INTEGER PRIMARY KEY AUTOINCREMENT, UserId INTEGER, Username TEXT, Action TEXT NOT NULL, Description TEXT, OldValue TEXT, NewValue TEXT, IpAddress TEXT, Timestamp TEXT DEFAULT CURRENT_TIMESTAMP, VehicleId INTEGER, Department TEXT, FOREIGN KEY(UserId) REFERENCES Employee(EmployeeId) ON DELETE SET NULL);")
 
-                    ' 9. Reports Table
-                    ExecuteSql(conn, "CREATE TABLE IF NOT EXISTS Reports (Id INTEGER PRIMARY KEY AUTOINCREMENT, Title TEXT NOT NULL, Type TEXT NOT NULL, Department TEXT, GeneratedBy INTEGER, FilePath TEXT NOT NULL, CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(GeneratedBy) REFERENCES Employee(EmployeeId) ON DELETE SET NULL);")
-
                     ' 10. OtpTokens Table (Forgot Password + Email Verification)
                     ExecuteSql(conn, "CREATE TABLE IF NOT EXISTS OtpTokens (Id INTEGER PRIMARY KEY AUTOINCREMENT, EmployeeId INTEGER NOT NULL, Token TEXT NOT NULL, TokenType TEXT NOT NULL CHECK(TokenType IN ('FORGOT_PASSWORD','EMAIL_VERIFY')), ExpiresAt TEXT NOT NULL, IsUsed INTEGER NOT NULL DEFAULT 0, CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(EmployeeId) REFERENCES Employee(EmployeeId) ON DELETE CASCADE);")
 
@@ -258,6 +255,13 @@ Public Class Database
         Try
             Dim current As Integer = GetVisitCount()
             ExecuteNonQuery("UPDATE Settings SET Value = @Val WHERE Key='VisitCount'", New SQLiteParameter("@Val", (current + 1).ToString()))
+        Catch
+        End Try
+    End Sub
+
+    Public Shared Sub DropUselessTables()
+        Try
+            ExecuteNonQuery("DROP TABLE IF EXISTS Reports;")
         Catch
         End Try
     End Sub
