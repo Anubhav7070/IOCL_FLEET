@@ -59,7 +59,7 @@
             </div>
             <asp:DropDownList ID="ddlFilterType" runat="server" AutoPostBack="true" OnSelectedIndexChanged="FilterDocs" CssClass="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 outline-none focus:border-blue-500 transition-all font-sans">
                 <asp:ListItem Text="All Document Types" Value=""></asp:ListItem>
-                <asp:ListItem Text="RC Copies Only" Value="VEHICLE_RC"></asp:ListItem>
+                <asp:ListItem Text="RC Copies Only" Value="RC"></asp:ListItem>
                 <asp:ListItem Text="Compliance Certs Only" Value="COMPLIANCE"></asp:ListItem>
             </asp:DropDownList>
             <asp:DropDownList ID="ddlFilterVerified" runat="server" AutoPostBack="true" OnSelectedIndexChanged="FilterDocs" CssClass="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 outline-none focus:border-blue-500 transition-all font-sans">
@@ -105,7 +105,7 @@
                             <td class="p-4 font-mono text-slate-400"><%# Container.ItemIndex + 1 %></td>
                             <td class="p-4">
                                 <div class="flex items-center gap-3">
-                                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border <%# If(Eval("LicenseType").ToString() = "VEHICLE_RC", "bg-purple-50 border-purple-200 text-purple-600", "bg-orange-50 border-orange-200 text-orange-600") %>">
+                                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border <%# If(Eval("LicenseType").ToString() = "RC", "bg-purple-50 border-purple-200 text-purple-600", "bg-orange-50 border-orange-200 text-orange-600") %>">
                                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                     </div>
                                     <div class="min-w-0">

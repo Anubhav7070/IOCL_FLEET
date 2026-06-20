@@ -26,15 +26,8 @@
                     </div>
 
                     <div>
-                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Target Department <span class="text-red-500">*</span></label>
-                        <asp:DropDownList ID="ddlDepartments" runat="server" CssClass="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-50 outline-none focus:border-blue-500 transition-all font-sans">
-                            <asp:ListItem Text="PR - Fire & Safety" Value="PR - Fire & Safety"></asp:ListItem>
-                            <asp:ListItem Text="PR - Refinery Operations" Value="PR - Refinery Operations"></asp:ListItem>
-                            <asp:ListItem Text="PR - Chemical & Laboratory" Value="PR - Chemical & Laboratory"></asp:ListItem>
-                            <asp:ListItem Text="PNC - Fire & Safety" Value="PNC - Fire & Safety"></asp:ListItem>
-                            <asp:ListItem Text="PNC - Cracker Operations" Value="PNC - Cracker Operations"></asp:ListItem>
-                            <asp:ListItem Text="PNC - Chemical & Testing" Value="PNC - Chemical & Testing"></asp:ListItem>
-                            <asp:ListItem Text="PR - Human Resources" Value="PR - Human Resources"></asp:ListItem>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Target Employee <span class="text-red-500">*</span></label>
+                        <asp:DropDownList ID="ddlEmployees" runat="server" CssClass="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-50 outline-none focus:border-blue-500 transition-all font-sans">
                         </asp:DropDownList>
                     </div>
 
@@ -74,6 +67,14 @@
                                     <ItemStyle CssClass="py-3.5 border-b border-slate-100" />
                                 </asp:TemplateField>
                                 <asp:BoundField DataField="VehicleType" HeaderText="Type">
+                                    <HeaderStyle CssClass="pb-3 text-slate-400 font-bold uppercase tracking-wider text-[10px]" />
+                                    <ItemStyle CssClass="py-3.5 border-b border-slate-100 font-semibold text-slate-600" />
+                                </asp:BoundField>
+                                <asp:BoundField DataField="EmpNumber" HeaderText="Employee ID">
+                                    <HeaderStyle CssClass="pb-3 text-slate-400 font-bold uppercase tracking-wider text-[10px]" />
+                                    <ItemStyle CssClass="py-3.5 border-b border-slate-100 font-semibold text-slate-600 font-mono" />
+                                </asp:BoundField>
+                                <asp:BoundField DataField="EmployeeName" HeaderText="Employee Name">
                                     <HeaderStyle CssClass="pb-3 text-slate-400 font-bold uppercase tracking-wider text-[10px]" />
                                     <ItemStyle CssClass="py-3.5 border-b border-slate-100 font-semibold text-slate-600" />
                                 </asp:BoundField>
@@ -128,7 +129,15 @@
                                     <HeaderStyle CssClass="pb-3 text-slate-400 font-bold uppercase tracking-wider text-[10px]" />
                                     <ItemStyle CssClass="py-2.5 border-b border-slate-100" />
                                 </asp:TemplateField>
-                                <asp:BoundField DataField="Department" HeaderText="Allocated Department">
+                                <asp:BoundField DataField="EmpNumber" HeaderText="Employee ID">
+                                    <HeaderStyle CssClass="pb-3 text-slate-400 font-bold uppercase tracking-wider text-[10px]" />
+                                    <ItemStyle CssClass="py-2.5 border-b border-slate-100 font-semibold text-slate-600 font-mono" />
+                                </asp:BoundField>
+                                <asp:BoundField DataField="EmployeeName" HeaderText="Employee Name">
+                                    <HeaderStyle CssClass="pb-3 text-slate-400 font-bold uppercase tracking-wider text-[10px]" />
+                                    <ItemStyle CssClass="py-2.5 border-b border-slate-100 font-semibold text-slate-600" />
+                                </asp:BoundField>
+                                <asp:BoundField DataField="Department" HeaderText="Department">
                                     <HeaderStyle CssClass="pb-3 text-slate-400 font-bold uppercase tracking-wider text-[10px]" />
                                     <ItemStyle CssClass="py-2.5 border-b border-slate-100 font-bold text-slate-700" />
                                 </asp:BoundField>

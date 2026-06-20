@@ -57,10 +57,10 @@ Public Class VaultPage
 
         ' Type filter
         Dim typeFilter As String = ddlFilterType.SelectedValue
-        If typeFilter = "VEHICLE_RC" Then
-            whereClauses.Add("r.LicenseType = 'VEHICLE_RC'")
+        If typeFilter = "RC" Then
+            whereClauses.Add("r.LicenseType = 'RC'")
         ElseIf typeFilter = "COMPLIANCE" Then
-            whereClauses.Add("r.LicenseType <> 'VEHICLE_RC'")
+            whereClauses.Add("r.LicenseType <> 'RC'")
         End If
 
         ' Search
@@ -96,7 +96,7 @@ Public Class VaultPage
         Dim verifiedDocs As Integer = 0
 
         For Each row As DataRow In dt.Rows
-            If row("LicenseType").ToString() = "VEHICLE_RC" Then
+            If row("LicenseType").ToString() = "RC" Then
                 rcCopies += 1
             Else
                 compDocs += 1
@@ -149,7 +149,7 @@ Public Class VaultPage
                     New SQLiteParameter("@Verifier", verifier))
 
                 ' Also update vehicle-level verification flag
-                If licType = "VEHICLE_RC" Then
+                If licType = "RC" Then
                     Database.ExecuteNonQuery(
                         "UPDATE Vehicles SET IsVerified = " & newVerified & ", VerifiedBy = @Verifier, UpdatedAt = datetime('now') WHERE Id = " & vehicleId,
                         New SQLiteParameter("@Verifier", verifier))
@@ -215,13 +215,11 @@ Public Class VaultPage
     Public Function GetStatusBadgeClass(ByVal statusObj As Object) As String
         If statusObj Is Nothing OrElse Convert.IsDBNull(statusObj) Then Return "bg-slate-100 text-slate-500"
         Select Case statusObj.ToString()
-            Case "ACTIVE", "FULLY_COMPLIANT"
+            Case "Valid", "ACTIVE", "FULLY_COMPLIANT"
                 Return "bg-emerald-100 text-emerald-700"
-            Case "WARNING"
-                Return "bg-yellow-100 text-yellow-700"
-            Case "CRITICAL", "HIGH_CRITICAL", "MEDIUM_CRITICAL"
+            Case "Expiring", "WARNING", "CRITICAL", "HIGH_CRITICAL", "MEDIUM_CRITICAL"
                 Return "bg-orange-100 text-orange-700"
-            Case "EXPIRED"
+            Case "Expired", "EXPIRED"
                 Return "bg-red-100 text-red-700"
             Case Else
                 Return "bg-slate-100 text-slate-500"

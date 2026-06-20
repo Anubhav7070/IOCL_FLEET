@@ -7,9 +7,9 @@
             Database.InitializeDatabase()
             Database.EnsureSettingsTable()
             Database.EnsureOtpTokensTable()   ' Migrate existing DBs to add OtpTokens table
-            Database.EnsureOwnershipTypeColumn()
             Database.EnsureOwnerDepartmentColumn()
             Database.EnsureVehicleAllocationsTable()
+            Database.EnsureDocumentHistoryTable()
             Database.EnsureLastAlertSentColumn()
             Database.EnsureIsDecommissionedColumn()
             Seeder.Seed()

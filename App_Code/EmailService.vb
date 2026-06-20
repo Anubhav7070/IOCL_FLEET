@@ -72,6 +72,51 @@ Public Class EmailService
         End Try
     End Sub
 
+    Public Shared Sub SendIndividualReminderEmail(ByVal toEmails As List(Of String), ByVal ccEmails As List(Of String), ByVal subject As String, ByVal htmlBody As String)
+        If toEmails Is Nothing OrElse toEmails.Count = 0 Then Return
+        If Not _configured Then
+            Console.WriteLine("[MAIL] Not configured - skipping reminder: " & subject)
+            Return
+        End If
+
+        Try
+            Dim fromAddr As New MailAddress(_fromAddress, _fromName)
+            Dim smtp As New SmtpClient()
+            smtp.Host = _host
+            smtp.Port = _port
+            smtp.EnableSsl = True
+            smtp.DeliveryMethod = SmtpDeliveryMethod.Network
+            smtp.UseDefaultCredentials = False
+            smtp.Credentials = New NetworkCredential(_user, _pass)
+            smtp.Timeout = 8000
+
+            Using message As New MailMessage()
+                message.From = fromAddr
+                message.Subject = subject
+                message.Body = htmlBody
+                message.IsBodyHtml = True
+
+                For Each email As String In toEmails
+                    If Not String.IsNullOrEmpty(email) Then
+                        message.To.Add(New MailAddress(email))
+                    End If
+                Next
+
+                For Each email As String In ccEmails
+                    If Not String.IsNullOrEmpty(email) Then
+                        message.CC.Add(New MailAddress(email))
+                    End If
+                Next
+
+                smtp.Send(message)
+            End Using
+
+            Console.WriteLine("[MAIL] Sent reminder to " & String.Join(",", toEmails.ToArray()) & " CC: " & String.Join(",", ccEmails.ToArray()))
+        Catch ex As Exception
+            Console.WriteLine("[MAIL ERROR] Failed to send reminder: " & ex.Message)
+        End Try
+    End Sub
+
     ' ─────────────────────────────────────────────────────────────────────────
     ' Consolidated Daily Alert/Digest Template
     ' ─────────────────────────────────────────────────────────────────────────

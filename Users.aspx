@@ -18,7 +18,8 @@
                         <asp:Button ID="btnReset" runat="server" Text="Reset" OnClick="btnReset_Click" CssClass="rounded border border-slate-250 hover:bg-slate-50 px-4 py-1.5 text-xs font-bold text-slate-500 cursor-pointer transition-all" />
                     </div>
                 </div>
-                <div>
+                <div class="flex items-center gap-2">
+                    <asp:Button ID="btnConfig" runat="server" Text="System Configuration" OnClick="btnConfig_Click" CssClass="rounded bg-orange-500 hover:bg-orange-600 px-4 py-1.5 text-xs font-bold text-white shadow transition-all duration-200 cursor-pointer focus:outline-none" />
                     <asp:Button ID="btnNewEmp" runat="server" Text="Create Account" OnClick="btnNewEmp_Click" CssClass="rounded bg-blue-600 hover:bg-blue-700 px-4 py-1.5 text-xs font-bold text-white shadow transition-all duration-200 cursor-pointer focus:outline-none" />
                 </div>
             </div>
@@ -134,6 +135,36 @@
                         </div>
                     </div>
 
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Manager Email</label>
+                            <asp:TextBox ID="txtManagerEmail" runat="server" placeholder="manager@iocl.co.in" CssClass="w-full rounded-md border border-slate-200 py-2 px-3 text-xs text-slate-850 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"></asp:TextBox>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">HOD Email</label>
+                            <asp:TextBox ID="txtHodEmail" runat="server" placeholder="hod@iocl.co.in" CssClass="w-full rounded-md border border-slate-200 py-2 px-3 text-xs text-slate-850 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"></asp:TextBox>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">GM Email</label>
+                            <asp:TextBox ID="txtGmEmail" runat="server" placeholder="gm@iocl.co.in" CssClass="w-full rounded-md border border-slate-200 py-2 px-3 text-xs text-slate-850 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"></asp:TextBox>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">CGM Email</label>
+                            <asp:TextBox ID="txtCgmEmail" runat="server" placeholder="cgm@iocl.co.in" CssClass="w-full rounded-md border border-slate-200 py-2 px-3 text-xs text-slate-850 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"></asp:TextBox>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Status *</label>
+                        <asp:DropDownList ID="ddlStatus" runat="server" CssClass="w-full rounded-md border border-slate-200 bg-white py-2 px-3 text-xs text-slate-750 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold">
+                            <asp:ListItem Text="Active" Value="Active"></asp:ListItem>
+                            <asp:ListItem Text="Inactive" Value="Inactive"></asp:ListItem>
+                        </asp:DropDownList>
+                    </div>
+
                     <div>
                         <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">
                             Access Key Password
@@ -144,6 +175,49 @@
                     <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                         <asp:Button ID="btnCancel" runat="server" Text="Cancel" OnClick="btnCancel_Click" CssClass="rounded border border-slate-200 hover:bg-slate-50 px-4 py-2 text-xs font-bold text-slate-500 cursor-pointer transition-colors" />
                         <asp:Button ID="btnSave" runat="server" Text="Save Account" OnClick="btnSave_Click" CssClass="rounded bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow shadow-blue-600/10 cursor-pointer transition-colors" />
+                    </div>
+                </div>
+            </div>
+        </asp:Panel>
+
+        <!-- System Configuration Modal -->
+        <asp:Panel ID="pnlConfig" runat="server" CssClass="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" Visible="false">
+            <div class="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+                <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-3">
+                    System Configuration
+                </h3>
+                
+                <div class="mt-4 space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">HR1 Name *</label>
+                            <asp:TextBox ID="txtHr1Name" runat="server" placeholder="HR Admin 1" CssClass="w-full rounded-md border border-slate-200 py-2 px-3 text-xs text-slate-850 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"></asp:TextBox>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">HR1 Email *</label>
+                            <asp:TextBox ID="txtHr1Email" runat="server" placeholder="hr1@iocl.co.in" CssClass="w-full rounded-md border border-slate-200 py-2 px-3 text-xs text-slate-850 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"></asp:TextBox>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">HR2 Name *</label>
+                            <asp:TextBox ID="txtHr2Name" runat="server" placeholder="HR Admin 2" CssClass="w-full rounded-md border border-slate-200 py-2 px-3 text-xs text-slate-850 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"></asp:TextBox>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">HR2 Email *</label>
+                            <asp:TextBox ID="txtHr2Email" runat="server" placeholder="hr2@iocl.co.in" CssClass="w-full rounded-md border border-slate-200 py-2 px-3 text-xs text-slate-850 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"></asp:TextBox>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Central Compliance Team Email *</label>
+                        <asp:TextBox ID="txtCentralEmail" runat="server" placeholder="compliance@iocl.co.in" CssClass="w-full rounded-md border border-slate-200 py-2 px-3 text-xs text-slate-850 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"></asp:TextBox>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                        <asp:Button ID="btnCancelConfig" runat="server" Text="Cancel" OnClick="btnCancelConfig_Click" CssClass="rounded border border-slate-200 hover:bg-slate-50 px-4 py-2 text-xs font-bold text-slate-500 cursor-pointer transition-colors" />
+                        <asp:Button ID="btnSaveConfig" runat="server" Text="Save Configuration" OnClick="btnSaveConfig_Click" CssClass="rounded bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow shadow-blue-600/10 cursor-pointer transition-colors" />
                     </div>
                 </div>
             </div>

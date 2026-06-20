@@ -12,7 +12,8 @@ Public Class ReportGenerator
     Private Shared ReadOnly LicenseNames As New Dictionary(Of String, String)() From {
         {"RC", "Registration Certificate (RC)"},
         {"INSURANCE", "Vehicle Insurance"},
-        {"PUCC", "Pollution Under Control (PUCC)"}
+        {"PUCC", "Pollution Under Control (PUCC)"},
+        {"FITNESS", "Fitness Certificate"}
     }
 
     Private Shared Function GetLicenseName(ByVal key As String) As String
@@ -127,7 +128,7 @@ Public Class ReportGenerator
                 Dim statusFont As Font = fontCell
                 Select Case status
                     Case "Expired" : statusFont = fontRed
-                    Case "Non-Compliant" : statusFont = fontOrange
+                    Case "Expiring" : statusFont = fontOrange
                 End Select
 
                 MakeCell(tbl, row("VehicleNumber").ToString(), fontCellBold, bg)
@@ -205,7 +206,7 @@ Public Class ReportGenerator
                     Dim statusFont As Font = fontCell
                     Select Case status
                         Case "Expired" : statusFont = fontRed
-                        Case "Non-Compliant" : statusFont = fontOrange
+                        Case "Expiring" : statusFont = fontOrange
                     End Select
 
                     Dim expiry As String = If(row("ExpiryDate") Is DBNull.Value, "", row("ExpiryDate").ToString())
@@ -267,7 +268,7 @@ Public Class ReportGenerator
             Dim statusColor As String = "#1E293B"
             Select Case status
                 Case "Expired" : statusColor = "#DC2626"
-                Case "Non-Compliant" : statusColor = "#EA580C"
+                Case "Expiring" : statusColor = "#EA580C"
             End Select
             Dim expiry As String = If(row("ExpiryDate") Is DBNull.Value, "", row("ExpiryDate").ToString())
 

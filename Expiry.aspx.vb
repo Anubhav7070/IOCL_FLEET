@@ -46,7 +46,7 @@ Public Class ExpiryPage
         Dim role As String = Session("Role").ToString()
         Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
 
-        Dim sql As String = "SELECT r.Id, r.VehicleId, r.LicenseType, r.ExpiryDate, r.Status, v.VehicleNumber, v.Department As DeptName FROM ComplianceRecords r INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE r.Status IN ('Expired', 'Non-Compliant') AND (v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL)"
+        Dim sql As String = "SELECT r.Id, r.VehicleId, r.LicenseType, r.ExpiryDate, r.Status, v.VehicleNumber, v.Department As DeptName FROM ComplianceRecords r INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE r.Status IN ('Expired', 'Expiring') AND (v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL)"
 
         Dim whereClauses As New List(Of String)()
         Dim parameters As New List(Of SQLiteParameter)()
@@ -204,12 +204,30 @@ Public Class ExpiryPage
     End Sub
 
     Private Sub LoadRenewalForm(ByVal recordId As Integer)
-        Dim sql As String = "SELECT r.*, v.VehicleNumber, v.Id As VehId FROM ComplianceRecords r INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE r.Id = @Id LIMIT 1"
+        Dim sql As String = "SELECT r.*, v.VehicleNumber, v.Id As VehId, v.EmployeeId As VehicleOwnerId FROM ComplianceRecords r INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE r.Id = @Id LIMIT 1"
 
         Dim dt As DataTable = Database.ExecuteDataTable(sql, New SQLiteParameter("@Id", recordId))
         If dt.Rows.Count = 0 Then Return
 
         Dim row As DataRow = dt.Rows(0)
+        Dim ownerId As Integer = Convert.ToInt32(row("VehicleOwnerId"))
+        Dim loggedInEmpId As Integer = Convert.ToInt32(Session("EmployeeId"))
+        Dim role As String = Session("Role").ToString()
+
+        Dim isOwner As Boolean = (ownerId = loggedInEmpId)
+
+        If Not isOwner Then
+            If role = "SuperAdmin" Then
+                ' Super Admin is restricted to view-only and sending notifications!
+                LoadNotifyPanel(recordId)
+                Return
+            Else
+                ' Other non-owners are redirected back to default with a warning
+                ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Access Denied: Only the vehicle owner or creator can renew this document.'); window.location.href='Default.aspx';", True)
+                Return
+            End If
+        End If
+
         hdnRecordId.Value = recordId.ToString()
         hdnVehicleId.Value = row("VehId").ToString()
         txtVehPlate.Text = row("VehicleNumber").ToString()
@@ -347,12 +365,17 @@ Public Class ExpiryPage
     End Sub
 
     Protected Sub btnSubmitRenew_Click(ByVal sender As Object, ByVal e As EventArgs)
-
         Dim recordId As Integer = Convert.ToInt32(hdnRecordId.Value)
         Dim vehicleId As Integer = Convert.ToInt32(hdnVehicleId.Value)
+        
+        Dim loggedInEmpId As Integer = Convert.ToInt32(Session("EmployeeId"))
+        Dim ownerIdObj As Object = Database.ExecuteScalar("SELECT EmployeeId FROM Vehicles WHERE Id = @VehId", New SQLiteParameter("@VehId", vehicleId))
+        If ownerIdObj Is Nothing OrElse Convert.ToInt32(ownerIdObj) <> loggedInEmpId Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Access Denied: Only the vehicle owner can renew this document.');", True)
+            Return
+        End If
+
         Dim docNumber As String = txtDocNumber.Text.Trim()
-
-
         Dim authority As String = txtAuthority.Text.Trim()
         Dim issueDate As String = txtIssueDate.Text
         Dim expiryDate As String = txtExpiryDate.Text
@@ -362,7 +385,7 @@ Public Class ExpiryPage
 
         ' File Upload is mandatory
         If Not fileScan.HasFile Then
-            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Please upload a scanned certificate copy (PDF required.');", True)
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Please upload a scanned certificate copy (PDF required).');", True)
             Return
         End If
 
@@ -435,17 +458,33 @@ Public Class ExpiryPage
 
             Dim newDocId As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT Id FROM Documents WHERE FilePath=@FilePath", New SQLiteParameter("@FilePath", relativePath)))
 
-            ' Old document history
-            Dim dtOld As DataTable = Database.ExecuteDataTable("SELECT ExpiryDate, DocumentId FROM ComplianceRecords WHERE Id = @Id LIMIT 1", New SQLiteParameter("@Id", recordId))
+            ' Fetch previous dates for DocumentHistory audit log before updating ComplianceRecords
+            Dim dtOld As DataTable = Database.ExecuteDataTable("SELECT IssueDate, ExpiryDate, LastUpdatedBy, DocumentId FROM ComplianceRecords WHERE Id = @Id LIMIT 1", New SQLiteParameter("@Id", recordId))
+            Dim oldStart As String = ""
             Dim oldExpiry As String = ""
             Dim oldDocId As Object = DBNull.Value
 
             If dtOld.Rows.Count > 0 Then
-                oldExpiry = dtOld.Rows(0)("ExpiryDate").ToString()
+                oldStart = If(dtOld.Rows(0)("IssueDate") Is DBNull.Value, "", dtOld.Rows(0)("IssueDate").ToString())
+                oldExpiry = If(dtOld.Rows(0)("ExpiryDate") Is DBNull.Value, "", dtOld.Rows(0)("ExpiryDate").ToString())
                 If dtOld.Rows(0)("DocumentId") IsNot DBNull.Value Then
                     oldDocId = dtOld.Rows(0)("DocumentId")
                 End If
             End If
+
+            ' Insert Document History log
+            Dim historySql As String = "INSERT INTO DocumentHistory (VehicleId, DocumentType, OldStartDate, OldExpiryDate, NewStartDate, NewExpiryDate, ChangedBy, ChangedOn, Remarks) " &
+                                       "VALUES (@VehId, @DocType, @OldStart, @OldExpiry, @NewStart, @NewExpiry, @ChangedBy, datetime('now'), @Remarks)"
+            Database.ExecuteNonQuery(historySql,
+                New SQLiteParameter("@VehId", vehicleId),
+                New SQLiteParameter("@DocType", txtDocType.Text),
+                New SQLiteParameter("@OldStart", If(String.IsNullOrEmpty(oldStart), DBNull.Value, oldStart)),
+                New SQLiteParameter("@OldExpiry", If(String.IsNullOrEmpty(oldExpiry), DBNull.Value, oldExpiry)),
+                New SQLiteParameter("@NewStart", issueDate),
+                New SQLiteParameter("@NewExpiry", expiryDate),
+                New SQLiteParameter("@ChangedBy", empName),
+                New SQLiteParameter("@Remarks", remarks)
+            )
 
             ' Update compliance record details
             Dim calculatedStatus As String = Compliance.CalculateStatus(txtDocType.Text, expiryDate)
@@ -512,7 +551,7 @@ Public Class ExpiryPage
         Select Case status
             Case "Expired"
                 Return "bg-red-50 text-red-700 border border-red-200"
-            Case "Non-Compliant"
+            Case "Expiring"
                 Return "bg-orange-50 text-orange-700 border border-orange-200"
             Case Else
                 Return "bg-emerald-50 text-emerald-700 border border-emerald-200"
@@ -548,7 +587,6 @@ Public Class ExpiryPage
 
     ' ─── Bulk Renewal Handler ──────────────────────────────────────────────────
     Protected Sub btnBulkRenew_Click(ByVal sender As Object, ByVal e As EventArgs)
-
         Dim bulkIdsRaw As String = Request.Form("hdnBulkSelectedIds")
         If String.IsNullOrEmpty(bulkIdsRaw) Then
             ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('No documents selected for bulk renewal.');", True)
@@ -572,6 +610,18 @@ Public Class ExpiryPage
             ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('No valid document IDs found.');", True)
             Return
         End If
+
+        ' Validate ownership for all records
+        Dim loggedInEmpId As Integer = Convert.ToInt32(Session("EmployeeId"))
+        For Each recordId As Integer In selectedIds
+            Dim ownerIdObj As Object = Database.ExecuteScalar(
+                "SELECT v.EmployeeId FROM ComplianceRecords r INNER JOIN Vehicles v ON r.VehicleId = v.Id WHERE r.Id = @Id",
+                New SQLiteParameter("@Id", recordId))
+            If ownerIdObj Is Nothing OrElse Convert.ToInt32(ownerIdObj) <> loggedInEmpId Then
+                ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Access Denied: You can only renew vehicles you registered.');", True)
+                Return
+            End If
+        Next
 
         ' Validate that every selected record has required per-document fields filled
         For Each recordId As Integer In selectedIds
@@ -642,18 +692,33 @@ Public Class ExpiryPage
                 End If
 
                 Dim dtOld As DataTable = Database.ExecuteDataTable(
-                    "SELECT VehicleId, LicenseType, ExpiryDate, DocumentId FROM ComplianceRecords WHERE Id = @Id LIMIT 1",
+                    "SELECT VehicleId, LicenseType, IssueDate, ExpiryDate, DocumentId FROM ComplianceRecords WHERE Id = @Id LIMIT 1",
                     New SQLiteParameter("@Id", recordId))
                 If dtOld.Rows.Count = 0 Then Continue For
 
                 Dim row As DataRow = dtOld.Rows(0)
                 Dim vehicleId As Integer = Convert.ToInt32(row("VehicleId"))
                 Dim licType As String = row("LicenseType").ToString()
+                Dim oldStart As String = If(row("IssueDate") Is DBNull.Value, "", row("IssueDate").ToString())
                 Dim oldExpiry As String = row("ExpiryDate").ToString()
                 Dim oldDocId As Object = If(row("DocumentId") Is DBNull.Value, CType(DBNull.Value, Object), row("DocumentId"))
 
                 ' Preserve existing document if no new file uploaded for this record (though validator guarantees it is)
                 If newDocId Is DBNull.Value Then newDocId = oldDocId
+
+                ' Insert Document History log
+                Dim historySql As String = "INSERT INTO DocumentHistory (VehicleId, DocumentType, OldStartDate, OldExpiryDate, NewStartDate, NewExpiryDate, ChangedBy, ChangedOn, Remarks) " &
+                                           "VALUES (@VehId, @DocType, @OldStart, @OldExpiry, @NewStart, @NewExpiry, @ChangedBy, datetime('now'), @Remarks)"
+                Database.ExecuteNonQuery(historySql,
+                    New SQLiteParameter("@VehId", vehicleId),
+                    New SQLiteParameter("@DocType", licType),
+                    New SQLiteParameter("@OldStart", If(String.IsNullOrEmpty(oldStart), DBNull.Value, oldStart)),
+                    New SQLiteParameter("@OldExpiry", If(String.IsNullOrEmpty(oldExpiry), DBNull.Value, oldExpiry)),
+                    New SQLiteParameter("@NewStart", issueDateStr),
+                    New SQLiteParameter("@NewExpiry", expiryDateStr),
+                    New SQLiteParameter("@ChangedBy", empName),
+                    New SQLiteParameter("@Remarks", remarks)
+                )
 
                 Dim calculatedStatus As String = Compliance.CalculateStatus(licType, expiryDateStr)
 

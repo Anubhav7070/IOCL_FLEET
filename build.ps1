@@ -3,7 +3,7 @@
 $ErrorActionPreference = "Stop"
 
 # 1. Setup folders
-$baseDir = "c:\Users\Lenovo\Downloads\IOCL\web-forms"
+$baseDir = $PSScriptRoot
 $binDir = Join-Path $baseDir "bin"
 $uploadsDir = Join-Path $baseDir "uploads"
 $appCodeDir = Join-Path $baseDir "App_Code"

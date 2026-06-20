@@ -56,7 +56,7 @@
             <asp:Panel ID="pnlCompliantCard" runat="server" CssClass="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all w-full flex items-center justify-between cursor-pointer" onclick="document.getElementById('MainContent_btnCompliantClick').click();">
                 <div class="flex-1 text-left">
                     <div class="flex items-center justify-between">
-                        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest font-sans">Compliant</span>
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest font-sans">Valid</span>
                         <span class="rounded bg-emerald-50 p-2 text-emerald-600 shrink-0">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </span>
@@ -65,12 +65,12 @@
                     <p class="text-[10px] text-emerald-500 mt-1 font-bold"><asp:Label ID="lblCompliantPercent" runat="server" Text="0"></asp:Label>% of Vehicles</p>
                 </div>
             </asp:Panel>
-
+ 
             <!-- Card 3: Non-Compliant -->
             <asp:Panel ID="pnlNonCompliantCard" runat="server" CssClass="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-orange-400 transition-all w-full flex items-center justify-between cursor-pointer" onclick="document.getElementById('MainContent_btnNonCompliantClick').click();">
                 <div class="flex-1 text-left">
                     <div class="flex items-center justify-between">
-                        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest font-sans">Non-Compliant</span>
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest font-sans">Expiring</span>
                         <span class="rounded bg-orange-50 p-2 text-orange-600 shrink-0">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                         </span>
@@ -96,7 +96,7 @@
         </div>
 
         <!-- Vehicle Metrics Summary Section -->
-        <asp:Panel ID="pnlMetricsSummary" runat="server" CssClass="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <asp:Panel ID="pnlMetricsSummary" runat="server" CssClass="grid grid-cols-1 gap-6 max-w-md">
             <!-- Column 1: Summary by Vehicle Type -->
             <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
                 <div class="border-b border-slate-100 pb-3">
@@ -116,60 +116,6 @@
                         </FooterTemplate>
                     </asp:Repeater>
                 </div>
-            </div>
-
-            <!-- Column 2: Department-wise Vehicles -->
-            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-                <div class="border-b border-slate-100 pb-3">
-                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Department-wise Vehicles</h3>
-                    <p class="text-[10px] text-slate-500 mt-0.5">Click a department to view its vehicle types</p>
-                </div>
-                <div class="space-y-2 max-h-[300px] overflow-y-auto">
-                    <asp:Repeater ID="rptDepartments" runat="server" OnItemCommand="rptDepartments_ItemCommand">
-                        <ItemTemplate>
-                            <div class="flex justify-between items-center bg-slate-50 hover:bg-slate-100 rounded-lg p-2.5 transition-colors border border-slate-100">
-                                <asp:LinkButton ID="lnkDept" runat="server" CommandName="SelectDept" CommandArgument='<%# Eval("Department") %>' CssClass="font-bold text-[#0054A6] hover:underline text-xs text-left">
-                                    <%# Eval("Department") %>
-                                </asp:LinkButton>
-                                <span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full"><%# Eval("Cnt") %></span>
-                            </div>
-                        </ItemTemplate>
-                        <FooterTemplate>
-                            <%# If(rptDepartments.Items.Count = 0, "<div class='py-8 text-center text-xs text-slate-400'>No departments recorded.</div>", "") %>
-                        </FooterTemplate>
-                    </asp:Repeater>
-                </div>
-            </div>
-
-            <!-- Column 3: Selected Department Breakdown -->
-            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-                <asp:Panel ID="pnlDeptBreakdown" runat="server" Visible="false" class="space-y-4">
-                    <div class="border-b border-slate-100 pb-3">
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                            <asp:Label ID="lblBreakdownDeptName" runat="server" Text="Department"></asp:Label> Breakdown
-                        </h3>
-                        <p class="text-[10px] text-slate-500 mt-0.5">Vehicle types active in this division</p>
-                    </div>
-                    <div class="space-y-2 max-h-[300px] overflow-y-auto">
-                        <asp:Repeater ID="rptDeptBreakdown" runat="server">
-                            <ItemTemplate>
-                                <div class="flex justify-between items-center bg-orange-50/50 hover:bg-orange-50 rounded-lg p-2.5 transition-colors border border-orange-100/50">
-                                    <span class="font-bold text-slate-700 text-xs"><%# Eval("VehicleType") %></span>
-                                    <span class="bg-orange-100 text-orange-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full"><%# Eval("Cnt") %></span>
-                                </div>
-                            </ItemTemplate>
-                            <FooterTemplate>
-                                <%# If(rptDeptBreakdown.Items.Count = 0, "<div class='py-8 text-center text-xs text-slate-400'>No types available.</div>", "") %>
-                            </FooterTemplate>
-                        </asp:Repeater>
-                    </div>
-                </asp:Panel>
-                <asp:Panel ID="pnlNoDeptBreakdown" runat="server" CssClass="flex flex-col items-center justify-center h-full text-center text-slate-400 py-12 border-2 border-dashed border-slate-150 rounded-xl">
-                    <svg class="h-8 w-8 opacity-20 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
-                    </svg>
-                    <p class="text-[10px] font-semibold">Select a department on the left to review its vehicle breakdown profile.</p>
-                </asp:Panel>
             </div>
         </asp:Panel>
 
@@ -274,14 +220,14 @@
                     <FooterTemplate>
                             </tbody>
                         </table>
-                        <%# If(rptCompliantVehicles.Items.Count = 0, "<div class='py-12 text-center text-xs text-slate-400'>No compliant vehicles.</div>", "") %>
+                        <%# If(rptCompliantVehicles.Items.Count = 0, "<div class='py-12 text-center text-xs text-slate-400'>No valid vehicles.</div>", "") %>
                     </FooterTemplate>
                 </asp:Repeater>
             </asp:Panel>
 
-            <!-- PANEL 3: Non-Compliant 3-column View -->
+            <!-- PANEL 3: Non-Compliant 4-column View -->
             <asp:Panel ID="pnlNonCompliantView" runat="server" Visible="false">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <!-- RC Column -->
                     <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-4 space-y-3">
                         <h4 class="text-xs font-bold text-orange-600 border-b border-orange-100 pb-2 flex items-center justify-between">
@@ -362,12 +308,39 @@
                             </asp:Repeater>
                         </div>
                     </div>
+
+                    <!-- Fitness Certificate Column -->
+                    <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-4 space-y-3">
+                        <h4 class="text-xs font-bold text-orange-600 border-b border-orange-100 pb-2 flex items-center justify-between">
+                            <span>Fitness Certificate</span>
+                            <span class="text-[9px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold">Going to Expire</span>
+                        </h4>
+                        <div class="space-y-3">
+                            <asp:Repeater ID="rptNonCompliantFitness" runat="server">
+                                <ItemTemplate>
+                                    <div class="bg-white border border-slate-100 rounded-lg p-3 space-y-2 shadow-sm">
+                                        <div class="flex justify-between items-start">
+                                            <span class="font-bold text-slate-800 font-mono text-[11px]"><%# Eval("VehicleNumber") %></span>
+                                            <span class="text-[9px] text-slate-400 font-semibold"><%# Eval("DepartmentName") %></span>
+                                        </div>
+                                        <div class="flex justify-between items-center text-[10px] text-slate-500 pt-1">
+                                            <span>Expires: <b class="font-mono text-slate-600"><%# FmtDate(Eval("ExpiryDate")) %></b></span>
+                                            <a href="Expiry.aspx?renewId=<%# Eval("Id") %>" class="text-blue-600 hover:underline font-bold">Renew</a>
+                                        </div>
+                                    </div>
+                                </ItemTemplate>
+                                <FooterTemplate>
+                                    <%# If(rptNonCompliantFitness.Items.Count = 0, "<div class='py-8 text-center text-xs text-slate-400'>No pending alerts.</div>", "") %>
+                                </FooterTemplate>
+                            </asp:Repeater>
+                        </div>
+                    </div>
                 </div>
             </asp:Panel>
 
-            <!-- PANEL 4: Expired 3-column View -->
+            <!-- PANEL 4: Expired 4-column View -->
             <asp:Panel ID="pnlExpiredView" runat="server" Visible="false">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <!-- RC Column -->
                     <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-4 space-y-3">
                         <h4 class="text-xs font-bold text-red-600 border-b border-red-100 pb-2 flex items-center justify-between">
@@ -448,6 +421,33 @@
                             </asp:Repeater>
                         </div>
                     </div>
+
+                    <!-- Fitness Certificate Column -->
+                    <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-4 space-y-3">
+                        <h4 class="text-xs font-bold text-red-600 border-b border-red-100 pb-2 flex items-center justify-between">
+                            <span>Fitness Certificate</span>
+                            <span class="text-[9px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold">Expired</span>
+                        </h4>
+                        <div class="space-y-3">
+                            <asp:Repeater ID="rptExpiredFitness" runat="server">
+                                <ItemTemplate>
+                                    <div class="bg-white border border-slate-100 rounded-lg p-3 space-y-2 shadow-sm">
+                                        <div class="flex justify-between items-start">
+                                            <span class="font-bold text-slate-800 font-mono text-[11px]"><%# Eval("VehicleNumber") %></span>
+                                            <span class="text-[9px] text-slate-400 font-semibold"><%# Eval("DepartmentName") %></span>
+                                        </div>
+                                        <div class="flex justify-between items-center text-[10px] text-slate-500 pt-1">
+                                            <span>Expired: <b class="font-mono text-red-500"><%# FmtDate(Eval("ExpiryDate")) %></b></span>
+                                            <a href="Expiry.aspx?renewId=<%# Eval("Id") %>" class="text-blue-600 hover:underline font-bold">Renew</a>
+                                        </div>
+                                    </div>
+                                </ItemTemplate>
+                                <FooterTemplate>
+                                    <%# If(rptExpiredFitness.Items.Count = 0, "<div class='py-8 text-center text-xs text-slate-400'>No expired certificates.</div>", "") %>
+                                </FooterTemplate>
+                            </asp:Repeater>
+                        </div>
+                    </div>
                 </div>
             </asp:Panel>
         </div>
@@ -508,79 +508,4 @@
         </asp:Panel>
     </div>
 
-    <div id="chartDataContainer" data-charts='<%= ChartDataJson %>' style="display: none;"></div>
-
-    <!-- Chart Configuration Script -->
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            var dataContainer = document.getElementById("chartDataContainer");
-            var chartData = null;
-            if (dataContainer) {
-                try {
-                    chartData = JSON.parse(dataContainer.getAttribute("data-charts"));
-                } catch (e) {
-                    console.error("Error parsing chart data: ", e);
-                }
-            }
-            if (chartData && chartData.DeptNames && chartData.DeptCounts) {
-                var ctx = document.getElementById('deptVehicleChart').getContext('2d');
-                new Chart(ctx, {
-                    type: 'pie',
-                    data: {
-                        labels: chartData.DeptNames,
-                        datasets: [{
-                            data: chartData.DeptCounts,
-                            backgroundColor: [
-                                '#0054A6', '#F47920', '#10B981', '#EF4444', '#8B5CF6', '#EC4899', '#F59E0B', '#3B82F6'
-                            ],
-                            borderWidth: 1,
-                            borderColor: '#ffffff'
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'right',
-                                labels: {
-                                    font: { size: 11, weight: 'bold' },
-                                    generateLabels: function(chart) {
-                                        const data = chart.data;
-                                        if (data.labels.length && data.datasets.length) {
-                                            return data.labels.map((label, i) => {
-                                                const count = data.datasets[0].data[i];
-                                                return {
-                                                    text: label + ' (' + count + ')',
-                                                    fillStyle: data.datasets[0].backgroundColor[i],
-                                                    strokeStyle: data.datasets[0].borderColor,
-                                                    lineWidth: data.datasets[0].borderWidth,
-                                                    index: i
-                                                };
-                                            });
-                                        }
-                                        return [];
-                                    }
-                                }
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        let label = context.label || '';
-                                        if (label) {
-                                            label += ': ';
-                                        }
-                                        if (context.parsed !== undefined) {
-                                            label += context.parsed + ' vehicles';
-                                        }
-                                        return label;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-        });
-    </script>
 </asp:Content>

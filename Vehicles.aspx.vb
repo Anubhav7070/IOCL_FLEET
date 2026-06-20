@@ -140,8 +140,8 @@ Public Class VehiclesPage
 
     Private Sub LoadVehicleDetails(ByVal vehicleId As Integer)
         Dim sql As String = "SELECT v.*, e.EmployeeName As CreatorName, e.EmpNumber As CreatorNumber FROM Vehicles v " &
-                           "INNER JOIN Employee e ON v.EmployeeId = e.EmployeeId " &
-                           "WHERE v.Id = @VehId LIMIT 1"
+                            "INNER JOIN Employee e ON v.EmployeeId = e.EmployeeId " &
+                            "WHERE v.Id = @VehId LIMIT 1"
         
         Dim dt As DataTable = Database.ExecuteDataTable(sql, New SQLiteParameter("@VehId", vehicleId))
         If dt.Rows.Count = 0 Then Return
@@ -150,6 +150,21 @@ Public Class VehiclesPage
         lblPlateNumber.Text = row("VehicleNumber").ToString()
         lblType.Text = row("VehicleType").ToString()
         lblCreator.Text = row("CreatorName").ToString()
+
+        ' Query the active allocation
+        Dim sqlAlloc As String = "SELECT emp.EmpNumber, emp.EmployeeName, emp.Department " &
+                                 "FROM VehicleAllocations a " &
+                                 "INNER JOIN Employee emp ON a.EmployeeId = emp.EmployeeId " &
+                                 "WHERE a.VehicleId = @VehId AND a.Status = 'Active' LIMIT 1"
+        Dim dtAlloc As DataTable = Database.ExecuteDataTable(sqlAlloc, New SQLiteParameter("@VehId", vehicleId))
+        If dtAlloc.Rows.Count > 0 Then
+            Dim allocRow As DataRow = dtAlloc.Rows(0)
+            lblAllocatedEmployee.Text = allocRow("EmployeeName").ToString() & " (" & allocRow("EmpNumber").ToString() & ")"
+            lblAllocatedDept.Text = allocRow("Department").ToString()
+        Else
+            lblAllocatedEmployee.Text = "Not Allocated (Default HR Ownership)"
+            lblAllocatedDept.Text = "PR - Human Resources"
+        End If
 
         Dim isVerified As Boolean = Convert.ToBoolean(row("IsVerified"))
         If isVerified Then
@@ -193,7 +208,16 @@ Public Class VehiclesPage
     Protected Sub btnSaveVehicle_Click(ByVal sender As Object, ByVal e As EventArgs)
         Dim plate As String = txtAddPlate.Text.Trim().ToUpper()
         Dim vehicleType As String = ddlAddType.SelectedValue
-        Dim dept As String = ddlAddDept.SelectedValue
+        
+        Dim dept As String = ""
+        If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then
+            dept = "PR - Human Resources"
+        ElseIf Session("Department") IsNot Nothing Then
+            dept = Session("Department").ToString()
+        End If
+        If String.IsNullOrEmpty(dept) Then
+            dept = "PR - Human Resources"
+        End If
 
         Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
 
@@ -212,11 +236,13 @@ Public Class VehiclesPage
         Dim rcFile As HttpPostedFile = Request.Files("docFile_RC")
         Dim insFile As HttpPostedFile = Request.Files("docFile_INSURANCE")
         Dim puccFile As HttpPostedFile = Request.Files("docFile_PUCC")
+        Dim fitnessFile As HttpPostedFile = Request.Files("docFile_FITNESS")
 
         If rcFile Is Nothing OrElse rcFile.ContentLength = 0 OrElse
            insFile Is Nothing OrElse insFile.ContentLength = 0 OrElse
-           puccFile Is Nothing OrElse puccFile.ContentLength = 0 Then
-            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('All mandatory documents (RC, Insurance, PUCC) are required.');", True)
+           puccFile Is Nothing OrElse puccFile.ContentLength = 0 OrElse
+           fitnessFile Is Nothing OrElse fitnessFile.ContentLength = 0 Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('All 4 mandatory documents (RC, Insurance, PUCC, and Fitness Certificate) are required.');", True)
             Return
         End If
 
@@ -227,22 +253,26 @@ Public Class VehiclesPage
         Dim insExpiryStr As String = Request.Form("expiryDate_INSURANCE")
         Dim puccIssueStr As String = Request.Form("issueDate_PUCC")
         Dim puccExpiryStr As String = Request.Form("expiryDate_PUCC")
+        Dim fitnessIssueStr As String = Request.Form("issueDate_FITNESS")
+        Dim fitnessExpiryStr As String = Request.Form("expiryDate_FITNESS")
 
         If String.IsNullOrEmpty(rcIssueStr) OrElse String.IsNullOrEmpty(rcExpiryStr) OrElse
            String.IsNullOrEmpty(insIssueStr) OrElse String.IsNullOrEmpty(insExpiryStr) OrElse
-           String.IsNullOrEmpty(puccIssueStr) OrElse String.IsNullOrEmpty(puccExpiryStr) Then
+           String.IsNullOrEmpty(puccIssueStr) OrElse String.IsNullOrEmpty(puccExpiryStr) OrElse
+           String.IsNullOrEmpty(fitnessIssueStr) OrElse String.IsNullOrEmpty(fitnessExpiryStr) Then
             ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('All issue and expiry dates are required.');", True)
             Return
         End If
 
         Try
             ' Insert Vehicle
-            Dim sqlInsert As String = "INSERT INTO Vehicles (VehicleNumber, VehicleType, Department, OwnerDepartment, DriverName, VendorName, OverallStatus, IsVerified, EmployeeId, OwnershipType, CreatedAt, UpdatedAt) " &
-                                      "VALUES (@Plate, @Type, @Dept, 'PR - Human Resources', '', '', 'Compliant', 0, @EmpId, 'Contractual', datetime('now'), datetime('now'));"
+            Dim sqlInsert As String = "INSERT INTO Vehicles (VehicleNumber, VehicleType, Department, OwnerDepartment, OverallStatus, IsVerified, EmployeeId, CreatedAt, UpdatedAt) " &
+                                      "VALUES (@Plate, @Type, @Dept, @OwnerDept, 'Valid', 0, @EmpId, datetime('now'), datetime('now'));"
             Database.ExecuteNonQuery(sqlInsert,
                 New SQLiteParameter("@Plate", plate),
                 New SQLiteParameter("@Type", vehicleType),
                 New SQLiteParameter("@Dept", dept),
+                New SQLiteParameter("@OwnerDept", dept),
                 New SQLiteParameter("@EmpId", empId)
             )
 
@@ -251,7 +281,7 @@ Public Class VehiclesPage
             Dim uploadDir As String = Server.MapPath("~/App_Data/Uploads/" & newVehId.ToString() & "/")
             If Not Directory.Exists(uploadDir) Then Directory.CreateDirectory(uploadDir)
 
-            Dim compulsoryDocs() As String = {"RC", "INSURANCE", "PUCC"}
+            Dim compulsoryDocs() As String = {"RC", "INSURANCE", "PUCC", "FITNESS"}
             For Each docType As String In compulsoryDocs
                 Dim issueDateStr As String = ""
                 Dim expiryDateStr As String = ""
@@ -270,6 +300,10 @@ Public Class VehiclesPage
                         issueDateStr = puccIssueStr
                         expiryDateStr = puccExpiryStr
                         postedFile = puccFile
+                    Case "FITNESS"
+                        issueDateStr = fitnessIssueStr
+                        expiryDateStr = fitnessExpiryStr
+                        postedFile = fitnessFile
                 End Select
 
                 Dim issueDate As Object = DBNull.Value
@@ -300,16 +334,25 @@ Public Class VehiclesPage
                 ))
 
                 Dim computedStatus As String = Compliance.CalculateStatus(docType, expiryDateStr)
+                Dim freq As Integer = 0
+                Select Case docType.ToUpper()
+                    Case "RC" : freq = 30
+                    Case "INSURANCE" : freq = 5
+                    Case "PUCC" : freq = 3
+                    Case "FITNESS" : freq = 7
+                End Select
 
                 ' Insert Compliance Record
                 Database.ExecuteNonQuery(
-                    "INSERT INTO ComplianceRecords (VehicleId, LicenseType, LicenseNumber, IssuingAuthority, IssueDate, ExpiryDate, Status, DocumentId, IsVerified, CreatedAt, UpdatedAt) " &
-                    "VALUES (@VId, @LType, @LNo, 'Govt of India', @IDate, @EDate, @Status, @DocId, 0, datetime('now'), datetime('now'));",
+                    "INSERT INTO ComplianceRecords (VehicleId, EmployeeId, LicenseType, LicenseNumber, IssuingAuthority, IssueDate, ExpiryDate, ReminderFrequency, Status, DocumentId, IsVerified, CreatedAt, UpdatedAt) " &
+                    "VALUES (@VId, @EmpId, @LType, @LNo, 'Govt of India', @IDate, @EDate, @Freq, @Status, @DocId, 0, datetime('now'), datetime('now'));",
                     New SQLiteParameter("@VId", newVehId),
+                    New SQLiteParameter("@EmpId", empId),
                     New SQLiteParameter("@LType", docType),
                     New SQLiteParameter("@LNo", "LIC-" & docType & "-" & newVehId),
                     New SQLiteParameter("@IDate", issueDate),
                     New SQLiteParameter("@EDate", expiryDate),
+                    New SQLiteParameter("@Freq", freq),
                     New SQLiteParameter("@Status", computedStatus),
                     New SQLiteParameter("@DocId", docId)
                 )
@@ -448,9 +491,9 @@ Public Class VehiclesPage
         If status Is Nothing Then Return "bg-slate-600"
         Dim s As String = status.ToString()
         Select Case s
-            Case "Compliant"
+            Case "Valid"
                 Return "bg-emerald-600"
-            Case "Non-Compliant"
+            Case "Expiring"
                 Return "bg-orange-600"
             Case "Expired"
                 Return "bg-red-600"
@@ -463,9 +506,9 @@ Public Class VehiclesPage
         If statusObj Is Nothing Then Return "bg-slate-100 text-slate-700 border-slate-200"
         Dim status As String = statusObj.ToString()
         Select Case status
-            Case "Compliant"
+            Case "Valid"
                 Return "bg-emerald-50 text-emerald-700 border-emerald-250"
-            Case "Non-Compliant"
+            Case "Expiring"
                 Return "bg-orange-50 text-orange-700 border-orange-200"
             Case "Expired"
                 Return "bg-red-50 text-red-700 border-red-200"
@@ -476,9 +519,9 @@ Public Class VehiclesPage
 
     Public Function GetDotColor(ByVal status As String) As String
         Select Case status
-            Case "Compliant"
+            Case "Valid"
                 Return "bg-emerald-500"
-            Case "Non-Compliant"
+            Case "Expiring"
                 Return "bg-orange-500"
             Case "Expired"
                 Return "bg-red-500"
@@ -556,7 +599,16 @@ Public Class VehiclesPage
 
         Dim plate As String = txtEditPlate.Text.Trim().ToUpper()
         Dim vehicleType As String = ddlEditType.SelectedValue
-        Dim dept As String = ddlEditDept.SelectedValue
+        
+        Dim dept As String = ""
+        If Session("Role") IsNot Nothing AndAlso Session("Role").ToString() = "SuperAdmin" Then
+            dept = "PR - Human Resources"
+        ElseIf Session("Department") IsNot Nothing Then
+            dept = Session("Department").ToString()
+        End If
+        If String.IsNullOrEmpty(dept) Then
+            dept = "PR - Human Resources"
+        End If
 
         If String.IsNullOrEmpty(plate) OrElse String.IsNullOrEmpty(vehicleType) Then
             ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Plate Number and Vehicle Type are required.');", True)

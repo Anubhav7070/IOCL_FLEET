@@ -20,8 +20,8 @@
 
                 <asp:DropDownList ID="ddlStatusFilter" runat="server" AutoPostBack="true" OnSelectedIndexChanged="FilterVehicles" CssClass="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 outline-none focus:border-blue-500 transition-all">
                     <asp:ListItem Text="All Statuses" Value=""></asp:ListItem>
-                    <asp:ListItem Text="Compliant" Value="Compliant"></asp:ListItem>
-                    <asp:ListItem Text="Non-Compliant" Value="Non-Compliant"></asp:ListItem>
+                    <asp:ListItem Text="Valid" Value="Valid"></asp:ListItem>
+                    <asp:ListItem Text="Expiring" Value="Expiring"></asp:ListItem>
                     <asp:ListItem Text="Expired" Value="Expired"></asp:ListItem>
                 </asp:DropDownList>
                 
@@ -119,6 +119,13 @@
                     <!-- Meta specs -->
                     <div class="border-t border-slate-100 pt-4 space-y-2.5 text-xs">
                         <div class="flex justify-between"><span class="text-slate-400 font-semibold">Registered By:</span> <span class="font-bold text-slate-700"><asp:Label ID="lblCreator" runat="server"></asp:Label></span></div>
+                        <div class="border-t border-slate-50 pt-2 space-y-1.5">
+                            <span class="text-slate-400 font-semibold block text-[10px] uppercase tracking-widest">Active Allocation Status</span>
+                            <div class="bg-slate-50 border border-slate-100 rounded-lg p-2.5 space-y-1 text-slate-650">
+                                <div><span class="font-medium">Employee:</span> <span class="font-bold text-slate-850"><asp:Label ID="lblAllocatedEmployee" runat="server" Text="Not Allocated (Default HR Ownership)"></asp:Label></span></div>
+                                <div><span class="font-medium">Department:</span> <span class="font-bold text-[#0054A6]"><asp:Label ID="lblAllocatedDept" runat="server" Text="PR - Human Resources"></asp:Label></span></div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Actions -->
@@ -269,7 +276,7 @@
                                 <asp:ListItem Text="Other" Value="Other"></asp:ListItem>
                             </asp:DropDownList>
                         </div>
-                        <div class="col-span-2">
+                        <div class="col-span-2 hidden" style="display: none;">
                             <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Department <span class="text-red-500">*</span></label>
                             <asp:DropDownList ID="ddlAddDept" runat="server" CssClass="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all font-sans bg-white">
                                 <asp:ListItem Text="PR - Human Resources" Value="PR - Human Resources" Selected="True"></asp:ListItem>
@@ -353,6 +360,27 @@
                             <input type="file" id="docFile_PUCC" name="docFile_PUCC" accept=".pdf" required class="w-full text-[10px] text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-[10px] file:font-bold file:text-[#0054A6] hover:file:bg-blue-100" />
                         </div>
                     </div>
+
+                    <!-- Fitness Certificate -->
+                    <div class="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                        <p class="text-[10px] font-extrabold text-slate-600 uppercase tracking-widest flex items-center gap-1.5">
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#0054A6] text-white text-[8px] font-bold shrink-0">4</span>
+                            Fitness Certificate PDF <span class="text-red-500">*</span>
+                        </p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Issue Date <span class="text-red-500">*</span></label>
+                                <input type="date" id="issueDate_FITNESS" name="issueDate_FITNESS" required class="w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-all" />
+                            </div>
+                            <div>
+                                <label class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Expiry Date <span class="text-red-500">*</span></label>
+                                <input type="date" id="expiryDate_FITNESS" name="expiryDate_FITNESS" required class="w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-blue-500 transition-all" />
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <input type="file" id="docFile_FITNESS" name="docFile_FITNESS" accept=".pdf" required class="w-full text-[10px] text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-2 file:py-1 file:text-[10px] file:font-bold file:text-[#0054A6] hover:file:bg-blue-100" />
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -404,7 +432,7 @@
                                 <asp:ListItem Text="Other" Value="Other"></asp:ListItem>
                             </asp:DropDownList>
                         </div>
-                        <div class="col-span-2">
+                        <div class="col-span-2 hidden" style="display: none;">
                             <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Department <span class="text-red-500">*</span></label>
                             <asp:DropDownList ID="ddlEditDept" runat="server" CssClass="w-full rounded border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 transition-all font-sans bg-white"></asp:DropDownList>
                         </div>

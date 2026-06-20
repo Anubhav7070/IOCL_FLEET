@@ -9,7 +9,7 @@ Imports System.Collections.Generic
 Public Class DefaultPage
     Inherits System.Web.UI.Page
 
-    Public ChartDataJson As String = "{}"
+
 
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As EventArgs) Handles Me.Load
         If Session("EmployeeId") Is Nothing Then
@@ -24,11 +24,7 @@ Public Class DefaultPage
         Catch ex As Exception
             ' Keep default label values (0) on error
         End Try
-        Try
-            LoadChartsData()
-        Catch ex As Exception
-            ' Keep empty chart on error
-        End Try
+
 
         ' Set card attributes on every page load to guarantee client-side click events are registered
         pnlTotalVehiclesCard.Attributes("onclick") = "document.getElementById('" & btnTotalVehiclesClick.ClientID & "').click();"
@@ -75,11 +71,11 @@ Public Class DefaultPage
         lblTotalVehicles.Text = total.ToString()
 
         ' Fully Compliant
-        Dim compliant As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'Compliant' AND (IsDecommissioned = 0 OR IsDecommissioned IS NULL)" & scopeWhere)
+        Dim compliant As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'Valid' AND (IsDecommissioned = 0 OR IsDecommissioned IS NULL)" & scopeWhere)
         lblCompliantVehicles.Text = compliant.ToString()
 
         ' Non-Compliant
-        Dim nonCompliant As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'Non-Compliant' AND (IsDecommissioned = 0 OR IsDecommissioned IS NULL)" & scopeWhere)
+        Dim nonCompliant As Integer = ExecScalar("SELECT COUNT(*) FROM Vehicles WHERE OverallStatus = 'Expiring' AND (IsDecommissioned = 0 OR IsDecommissioned IS NULL)" & scopeWhere)
         lblNonCompliantVehicles.Text = nonCompliant.ToString()
 
         ' Expired
@@ -90,40 +86,7 @@ Public Class DefaultPage
         lblCompliantPercent.Text = If(total > 0, Math.Round((CDbl(compliant) / total) * 100).ToString(), "0")
     End Sub
 
-    Private Sub LoadChartsData()
-        Dim role As String = Session("Role").ToString()
-        Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
-        Dim userDept As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
 
-        ' Query department vehicle counts
-        Dim sqlDepts As String = "SELECT Department, COUNT(*) As Cnt FROM Vehicles WHERE Department IS NOT NULL AND Department <> '' AND (IsDecommissioned = 0 OR IsDecommissioned IS NULL)"
-        Dim dtDepts As DataTable
-
-        If role = "Employee" Then
-            sqlDepts &= " AND EmployeeId = @ScopeId GROUP BY Department"
-            dtDepts = Database.ExecuteDataTable(sqlDepts, New SQLiteParameter("@ScopeId", empId))
-        ElseIf role = "DEPT_ADMIN" Then
-            sqlDepts &= " AND Department = @ScopeId GROUP BY Department"
-            dtDepts = Database.ExecuteDataTable(sqlDepts, New SQLiteParameter("@ScopeId", userDept))
-        Else
-            sqlDepts &= " GROUP BY Department"
-            dtDepts = Database.ExecuteDataTable(sqlDepts)
-        End If
-
-        Dim deptNames As New List(Of String)()
-        Dim deptCounts As New List(Of Integer)()
-        For Each row As DataRow In dtDepts.Rows
-            deptNames.Add(row("Department").ToString())
-            deptCounts.Add(Convert.ToInt32(row("Cnt")))
-        Next
-
-        Dim chartObj As New Dictionary(Of String, Object)()
-        chartObj("DeptNames") = deptNames
-        chartObj("DeptCounts") = deptCounts
-
-        Dim serializer As New JavaScriptSerializer()
-        ChartDataJson = serializer.Serialize(chartObj)
-    End Sub
 
     Private Sub LoadDepartmentDdl()
         If ddlAlertDept Is Nothing Then Return
@@ -161,93 +124,8 @@ Public Class DefaultPage
         rptVehicleTypes.DataBind()
     End Sub
 
-    Private Sub LoadDepartmentSummary()
-        Dim role As String = Session("Role").ToString()
-        Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
-
-        Dim sql As String = "SELECT Department, COUNT(*) As Cnt FROM Vehicles WHERE Department IS NOT NULL AND Department <> '' AND (IsDecommissioned = 0 OR IsDecommissioned IS NULL)"
-        Dim params As New List(Of SQLiteParameter)()
-
-        If role = "Employee" Then
-            sql &= " AND EmployeeId = @EmpId"
-            params.Add(New SQLiteParameter("@EmpId", empId))
-        ElseIf role = "DEPT_ADMIN" Then
-            Dim deptScope As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
-            If Not String.IsNullOrEmpty(deptScope) Then
-                sql &= " AND Department = @DeptScope"
-                params.Add(New SQLiteParameter("@DeptScope", deptScope))
-            End If
-        End If
-
-        sql &= " GROUP BY Department ORDER BY Cnt DESC"
-
-        Dim dt As DataTable = Database.ExecuteDataTable(sql, params.ToArray())
-        rptDepartments.DataSource = dt
-        rptDepartments.DataBind()
-    End Sub
-
-    Protected Sub rptDepartments_ItemCommand(ByVal source As Object, ByVal e As RepeaterCommandEventArgs)
-        If e.CommandName = "SelectDept" Then
-            Dim dept As String = e.CommandArgument.ToString()
-            ViewState("SelectedDeptForBreakdown") = dept
-            LoadDeptBreakdown(dept)
-
-            ' Also filter the bottom vehicles table by this department!
-            If ddlAlertDept IsNot Nothing Then
-                If ddlAlertDept.Items.FindByValue(dept) Is Nothing Then
-                    ddlAlertDept.Items.Add(New ListItem(dept, dept))
-                End If
-                ddlAlertDept.SelectedValue = dept
-                BindActiveView()
-            End If
-        End If
-    End Sub
-
-    Private Sub LoadDeptBreakdown(ByVal dept As String)
-        If String.IsNullOrEmpty(dept) Then
-            pnlDeptBreakdown.Visible = False
-            pnlNoDeptBreakdown.Visible = True
-            Return
-        End If
-
-        Dim role As String = Session("Role").ToString()
-        Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
-
-        Dim sql As String = "SELECT VehicleType, COUNT(*) As Cnt FROM Vehicles WHERE Department = @Dept AND (IsDecommissioned = 0 OR IsDecommissioned IS NULL)"
-        Dim params As New List(Of SQLiteParameter)()
-        params.Add(New SQLiteParameter("@Dept", dept))
-
-        If role = "Employee" Then
-            sql &= " AND EmployeeId = @EmpId"
-            params.Add(New SQLiteParameter("@EmpId", empId))
-        ElseIf role = "DEPT_ADMIN" Then
-            Dim deptScope As String = If(Session("Department") IsNot Nothing, Session("Department").ToString(), "")
-            If Not String.IsNullOrEmpty(deptScope) Then
-                sql &= " AND Department = @DeptScope"
-                params.Add(New SQLiteParameter("@DeptScope", deptScope))
-            End If
-        End If
-
-        sql &= " GROUP BY VehicleType ORDER BY Cnt DESC"
-
-        Dim dt As DataTable = Database.ExecuteDataTable(sql, params.ToArray())
-        lblBreakdownDeptName.Text = dept
-        rptDeptBreakdown.DataSource = dt
-        rptDeptBreakdown.DataBind()
-
-        pnlDeptBreakdown.Visible = True
-        pnlNoDeptBreakdown.Visible = False
-    End Sub
-
     Private Sub RefreshSummaries()
         LoadVehicleTypeSummary()
-        LoadDepartmentSummary()
-        If ViewState("SelectedDeptForBreakdown") IsNot Nothing Then
-            LoadDeptBreakdown(ViewState("SelectedDeptForBreakdown").ToString())
-        Else
-            pnlDeptBreakdown.Visible = False
-            pnlNoDeptBreakdown.Visible = True
-        End If
     End Sub
 
     ' ── Active View Tab Controls ──
@@ -258,12 +136,12 @@ Public Class DefaultPage
     End Sub
 
     Protected Sub lnkCompliantVehicles_Click(ByVal sender As Object, ByVal e As EventArgs)
-        ViewState("ActiveView") = "Compliant"
+        ViewState("ActiveView") = "Valid"
         BindActiveView()
     End Sub
 
     Protected Sub lnkNonCompliantVehicles_Click(ByVal sender As Object, ByVal e As EventArgs)
-        ViewState("ActiveView") = "NonCompliant"
+        ViewState("ActiveView") = "Expiring"
         BindActiveView()
     End Sub
 
@@ -289,8 +167,8 @@ Public Class DefaultPage
 
         ' Toggle Visibility of Panels
         pnlTotalVehiclesView.Visible = (active = "Total")
-        pnlCompliantVehiclesView.Visible = (active = "Compliant")
-        pnlNonCompliantView.Visible = (active = "NonCompliant")
+        pnlCompliantVehiclesView.Visible = (active = "Valid")
+        pnlNonCompliantView.Visible = (active = "Expiring")
         pnlExpiredView.Visible = (active = "Expired")
 
         pnlMetricsSummary.Visible = (active = "Total")
@@ -305,18 +183,19 @@ Public Class DefaultPage
                 LoadTotalVehiclesList()
                 pnlTotalVehiclesCard.CssClass = "rounded-xl border-2 border-blue-500 bg-blue-50/30 p-5 shadow-md transition-all w-full flex items-center justify-between cursor-pointer"
 
-            Case "Compliant"
-                lblActiveTabTitle.Text = "Compliant Vehicles"
-                lblActiveTabDesc.Text = "Directory of all compliant refinery vehicles (windshield clearance green)"
+            Case "Valid"
+                lblActiveTabTitle.Text = "Valid Vehicles"
+                lblActiveTabDesc.Text = "Directory of all valid refinery vehicles (windshield clearance green)"
                 LoadCompliantVehiclesList()
                 pnlCompliantCard.CssClass = "rounded-xl border-2 border-emerald-500 bg-emerald-50/30 p-5 shadow-md transition-all w-full flex items-center justify-between cursor-pointer"
 
-            Case "NonCompliant"
-                lblActiveTabTitle.Text = "Non-Compliant Documents"
+            Case "Expiring"
+                lblActiveTabTitle.Text = "Expiring Documents"
                 lblActiveTabDesc.Text = "Compliance certificates within warning thresholds (renewal needed)"
-                LoadScopedDocumentRepeater(rptNonCompliantRC, "Non-Compliant", "RC")
-                LoadScopedDocumentRepeater(rptNonCompliantInsurance, "Non-Compliant", "INSURANCE")
-                LoadScopedDocumentRepeater(rptNonCompliantPUCC, "Non-Compliant", "PUCC")
+                LoadScopedDocumentRepeater(rptNonCompliantRC, "Expiring", "RC")
+                LoadScopedDocumentRepeater(rptNonCompliantInsurance, "Expiring", "INSURANCE")
+                LoadScopedDocumentRepeater(rptNonCompliantPUCC, "Expiring", "PUCC")
+                LoadScopedDocumentRepeater(rptNonCompliantFitness, "Expiring", "FITNESS")
                 pnlNonCompliantCard.CssClass = "rounded-xl border-2 border-orange-500 bg-orange-50/30 p-5 shadow-md transition-all w-full flex items-center justify-between cursor-pointer"
 
             Case "Expired"
@@ -325,6 +204,7 @@ Public Class DefaultPage
                 LoadScopedDocumentRepeater(rptExpiredRC, "Expired", "RC")
                 LoadScopedDocumentRepeater(rptExpiredInsurance, "Expired", "INSURANCE")
                 LoadScopedDocumentRepeater(rptExpiredPUCC, "Expired", "PUCC")
+                LoadScopedDocumentRepeater(rptExpiredFitness, "Expired", "FITNESS")
                 pnlExpiredCard.CssClass = "rounded-xl border-2 border-red-500 bg-red-50/30 p-5 shadow-md transition-all w-full flex items-center justify-between cursor-pointer"
         End Select
     End Sub
@@ -379,7 +259,7 @@ Public Class DefaultPage
         Dim whereClauses As New List(Of String)()
         Dim params As New List(Of SQLiteParameter)()
 
-        whereClauses.Add("v.OverallStatus = 'Compliant'")
+        whereClauses.Add("v.OverallStatus = 'Valid'")
         whereClauses.Add("(v.IsDecommissioned = 0 OR v.IsDecommissioned IS NULL)")
 
         If role = "Employee" Then
@@ -527,7 +407,6 @@ Public Class DefaultPage
 
             ' Refresh dashboard
             LoadDashboardStats()
-            LoadChartsData()
             RefreshSummaries()
             BindActiveView()
             LoadVerificationDocs()
@@ -551,9 +430,9 @@ Public Class DefaultPage
         If status Is Nothing Then Return "bg-slate-100 text-slate-700"
         Dim s As String = status.ToString()
         Select Case s
-            Case "Compliant"
+            Case "Valid"
                 Return "bg-emerald-100 text-emerald-700"
-            Case "Non-Compliant"
+            Case "Expiring"
                 Return "bg-orange-100 text-orange-700"
             Case "Expired"
                 Return "bg-red-100 text-red-700"

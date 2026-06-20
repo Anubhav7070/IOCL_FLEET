@@ -8,6 +8,12 @@ Public Class Seeder
         ' Ensure DB schema is initialized first
         Database.InitializeDatabase()
 
+        ' Run startup database migrations
+        Database.EnsureEmployeeColumns()
+        Database.EnsureSystemConfigurationTable()
+        Database.EnsureComplianceRecordsColumns()
+        Database.EnsureDocumentHistoryRemarksColumn()
+
         ' Check if already seeded
         Dim count As Object = Database.ExecuteScalar("SELECT COUNT(*) FROM Employee")
         If Convert.ToInt32(count) > 0 Then Return
@@ -19,7 +25,7 @@ Public Class Seeder
         Dim adminPasswordHash As String = BCrypt.Net.BCrypt.HashPassword("password123")
 
         ' Insert SuperAdmin Employee
-        Database.ExecuteNonQuery("INSERT INTO Employee (EmpNumber, EmployeeName, Department, Designation, EmailId) VALUES ('10000001', 'Super Admin', '', 'Superintendent', 'singhanubhav1562@gmail.com');")
+        Database.ExecuteNonQuery("INSERT INTO Employee (EmpNumber, EmployeeName, Department, Designation, EmailId) VALUES ('10000001', 'Super Admin', 'PR - Human Resources', 'Superintendent', 'singhanubhav1562@gmail.com');")
         Dim superAdminEmpId As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT EmployeeId FROM Employee WHERE EmpNumber='10000001'"))
         Database.ExecuteNonQuery("INSERT INTO Authentication (EmployeeId, EmployeeName, Role, Password) VALUES (" & superAdminEmpId & ", 'Super Admin', 'SuperAdmin', '" & adminPasswordHash & "');")
 

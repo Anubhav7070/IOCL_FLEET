@@ -22,7 +22,7 @@
                 <asp:DropDownList ID="ddlSeverityFilter" runat="server" AutoPostBack="true" OnSelectedIndexChanged="FilterAlerts" CssClass="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 outline-none focus:border-blue-500 transition-all">
                     <asp:ListItem Text="All Flagged Alerts" Value=""></asp:ListItem>
                     <asp:ListItem Text="Expired Only" Value="Expired"></asp:ListItem>
-                    <asp:ListItem Text="Non-Compliant Only" Value="Non-Compliant"></asp:ListItem>
+                    <asp:ListItem Text="Expiring Only" Value="Expiring"></asp:ListItem>
                 </asp:DropDownList>
                 
                 <asp:LinkButton ID="btnClearFilters" runat="server" OnClick="btnResetFilter_Click" CssClass="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2">Reset</asp:LinkButton>

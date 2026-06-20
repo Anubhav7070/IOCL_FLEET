@@ -34,7 +34,7 @@ Public Class UsersPage
     End Sub
 
     Private Sub LoadEmployees()
-        Dim sql As String = "SELECT e.EmployeeId, e.EmpNumber, e.EmployeeName, e.Department, e.Designation, a.Role, e.EmailId FROM Employee e INNER JOIN Authentication a ON e.EmployeeId = a.EmployeeId"
+        Dim sql As String = "SELECT e.EmployeeId, e.EmpNumber, e.EmployeeName, e.Department, e.Designation, a.Role, e.EmailId, e.ManagerEmail, e.HodEmail, e.GmEmail, e.CgmEmail, e.Status FROM Employee e INNER JOIN Authentication a ON e.EmployeeId = a.EmployeeId"
         
         Dim whereClauses As New List(Of String)()
         Dim parameters As New List(Of SQLiteParameter)()
@@ -133,6 +133,11 @@ Public Class UsersPage
         txtEmpEmail.Text = ""
         ddlEmpRole.SelectedIndex = 0
         txtEmpPassword.Text = ""
+        txtManagerEmail.Text = ""
+        txtHodEmail.Text = ""
+        txtGmEmail.Text = ""
+        txtCgmEmail.Text = ""
+        ddlStatus.SelectedIndex = 0
         
         ToggleDepartmentScopeControl()
         
@@ -157,6 +162,17 @@ Public Class UsersPage
         txtEmpEmail.Text = row("EmailId").ToString()
         
         ddlEmpRole.SelectedValue = row("Role").ToString()
+        
+        txtManagerEmail.Text = If(row("ManagerEmail") Is DBNull.Value, "", row("ManagerEmail").ToString())
+        txtHodEmail.Text = If(row("HodEmail") Is DBNull.Value, "", row("HodEmail").ToString())
+        txtGmEmail.Text = If(row("GmEmail") Is DBNull.Value, "", row("GmEmail").ToString())
+        txtCgmEmail.Text = If(row("CgmEmail") Is DBNull.Value, "", row("CgmEmail").ToString())
+        Dim statusVal As String = If(row("Status") Is DBNull.Value, "Active", row("Status").ToString())
+        Try
+            ddlStatus.SelectedValue = statusVal
+        Catch
+            ddlStatus.SelectedIndex = 0
+        End Try
         
         Try
             ddlEmpDept.SelectedValue = row("Department").ToString()
@@ -200,6 +216,11 @@ Public Class UsersPage
         Dim email As String = txtEmpEmail.Text.Trim()
         Dim role As String = ddlEmpRole.SelectedValue
         Dim password As String = txtEmpPassword.Text
+        Dim managerEmail As String = txtManagerEmail.Text.Trim()
+        Dim hodEmail As String = txtHodEmail.Text.Trim()
+        Dim gmEmail As String = txtGmEmail.Text.Trim()
+        Dim cgmEmail As String = txtCgmEmail.Text.Trim()
+        Dim status As String = ddlStatus.SelectedValue
         Dim adminId As Integer = Convert.ToInt32(Session("EmployeeId"))
         Dim adminName As String = Session("EmployeeName").ToString()
 
@@ -235,13 +256,18 @@ Public Class UsersPage
                 Dim defaultPassword As String = If(String.IsNullOrEmpty(password), empNo, password)
 
                 ' Save Employee
-                Dim sqlInsertEmp As String = "INSERT INTO Employee (EmpNumber, EmployeeName, Department, Designation, EmailId) VALUES (@No, @Name, @Dept, @Desg, @Email);"
+                Dim sqlInsertEmp As String = "INSERT INTO Employee (EmpNumber, EmployeeName, Department, Designation, EmailId, ManagerEmail, HodEmail, GmEmail, CgmEmail, Status) VALUES (@No, @Name, @Dept, @Desg, @Email, @ManagerEmail, @HodEmail, @GmEmail, @CgmEmail, @Status);"
                 Database.ExecuteNonQuery(sqlInsertEmp,
                     New SQLiteParameter("@No", empNo),
                     New SQLiteParameter("@Name", name),
                     New SQLiteParameter("@Dept", dept),
                     New SQLiteParameter("@Desg", desg),
-                    New SQLiteParameter("@Email", email))
+                    New SQLiteParameter("@Email", email),
+                    New SQLiteParameter("@ManagerEmail", managerEmail),
+                    New SQLiteParameter("@HodEmail", hodEmail),
+                    New SQLiteParameter("@GmEmail", gmEmail),
+                    New SQLiteParameter("@CgmEmail", cgmEmail),
+                    New SQLiteParameter("@Status", status))
 
                 Dim newEmpId As Integer = Convert.ToInt32(Database.ExecuteScalar("SELECT EmployeeId FROM Employee WHERE EmpNumber=@No", New SQLiteParameter("@No", empNo)))
 
@@ -275,12 +301,17 @@ Public Class UsersPage
                 End If
 
                 ' Update Employee details
-                Dim sqlUpdateEmp As String = "UPDATE Employee SET EmployeeName = @Name, Department = @Dept, Designation = @Desg, EmailId = @Email WHERE EmployeeId = @Id"
+                Dim sqlUpdateEmp As String = "UPDATE Employee SET EmployeeName = @Name, Department = @Dept, Designation = @Desg, EmailId = @Email, ManagerEmail = @ManagerEmail, HodEmail = @HodEmail, GmEmail = @GmEmail, CgmEmail = @CgmEmail, Status = @Status WHERE EmployeeId = @Id"
                 Database.ExecuteNonQuery(sqlUpdateEmp,
                     New SQLiteParameter("@Name", name),
                     New SQLiteParameter("@Dept", dept),
                     New SQLiteParameter("@Desg", desg),
                     New SQLiteParameter("@Email", email),
+                    New SQLiteParameter("@ManagerEmail", managerEmail),
+                    New SQLiteParameter("@HodEmail", hodEmail),
+                    New SQLiteParameter("@GmEmail", gmEmail),
+                    New SQLiteParameter("@CgmEmail", cgmEmail),
+                    New SQLiteParameter("@Status", status),
                     New SQLiteParameter("@Id", empId))
 
                 ' Update Authentication details
@@ -310,6 +341,77 @@ Public Class UsersPage
             ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Save failed: " & Server.HtmlEncode(ex.Message) & "');", True)
         End Try
     End Sub
+
+    Protected Sub btnConfig_Click(ByVal sender As Object, ByVal e As EventArgs)
+        ' Load System Configuration
+        Dim dt As DataTable = Database.ExecuteDataTable("SELECT * FROM SystemConfiguration LIMIT 1")
+        If dt.Rows.Count > 0 Then
+            Dim row As DataRow = dt.Rows(0)
+            txtHr1Name.Text = If(row("Hr1Name") Is DBNull.Value, "", row("Hr1Name").ToString())
+            txtHr1Email.Text = If(row("Hr1Email") Is DBNull.Value, "", row("Hr1Email").ToString())
+            txtHr2Name.Text = If(row("Hr2Name") Is DBNull.Value, "", row("Hr2Name").ToString())
+            txtHr2Email.Text = If(row("Hr2Email") Is DBNull.Value, "", row("Hr2Email").ToString())
+            txtCentralEmail.Text = If(row("CentralComplianceEmail") Is DBNull.Value, "", row("CentralComplianceEmail").ToString())
+        Else
+            txtHr1Name.Text = ""
+            txtHr1Email.Text = ""
+            txtHr2Name.Text = ""
+            txtHr2Email.Text = ""
+            txtCentralEmail.Text = ""
+        End If
+        pnlConfig.Visible = True
+    End Sub
+
+    Protected Sub btnCancelConfig_Click(ByVal sender As Object, ByVal e As EventArgs)
+        pnlConfig.Visible = False
+    End Sub
+
+    Protected Sub btnSaveConfig_Click(ByVal sender As Object, ByVal e As EventArgs)
+        Dim hr1Name As String = txtHr1Name.Text.Trim()
+        Dim hr1Email As String = txtHr1Email.Text.Trim()
+        Dim hr2Name As String = txtHr2Name.Text.Trim()
+        Dim hr2Email As String = txtHr2Email.Text.Trim()
+        Dim centralEmail As String = txtCentralEmail.Text.Trim()
+        Dim adminId As Integer = Convert.ToInt32(Session("EmployeeId"))
+        Dim adminName As String = Session("EmployeeName").ToString()
+
+        If String.IsNullOrEmpty(hr1Name) OrElse String.IsNullOrEmpty(hr1Email) OrElse String.IsNullOrEmpty(hr2Name) OrElse String.IsNullOrEmpty(hr2Email) OrElse String.IsNullOrEmpty(centralEmail) Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('All fields are required.');", True)
+            Return
+        End If
+
+        Try
+            Dim count As Object = Database.ExecuteScalar("SELECT COUNT(*) FROM SystemConfiguration")
+            If Convert.ToInt32(count) > 0 Then
+                Database.ExecuteNonQuery(
+                    "UPDATE SystemConfiguration SET Hr1Name=@Name1, Hr1Email=@Email1, Hr2Name=@Name2, Hr2Email=@Email2, CentralComplianceEmail=@CentralEmail WHERE Id=1",
+                    New SQLiteParameter("@Name1", hr1Name),
+                    New SQLiteParameter("@Email1", hr1Email),
+                    New SQLiteParameter("@Name2", hr2Name),
+                    New SQLiteParameter("@Email2", hr2Email),
+                    New SQLiteParameter("@CentralEmail", centralEmail))
+            Else
+                Database.ExecuteNonQuery(
+                    "INSERT INTO SystemConfiguration (Hr1Name, Hr1Email, Hr2Name, Hr2Email, CentralComplianceEmail) VALUES (@Name1, @Email1, @Name2, @Email2, @CentralEmail)",
+                    New SQLiteParameter("@Name1", hr1Name),
+                    New SQLiteParameter("@Email1", hr1Email),
+                    New SQLiteParameter("@Name2", hr2Name),
+                    New SQLiteParameter("@Email2", hr2Email),
+                    New SQLiteParameter("@CentralEmail", centralEmail))
+            End If
+
+            ' Log Audit
+            Dim sqlAudit As String = "INSERT INTO AuditLogs (UserId, Username, Action, Description, IpAddress, Timestamp) VALUES (" & adminId & ", @Admin, 'SYSTEM_CONFIG_UPDATE', 'Updated system configurations for HR1, HR2, and Compliance.', @IP, datetime('now'));"
+            Database.ExecuteNonQuery(sqlAudit, New SQLiteParameter("@Admin", adminName), New SQLiteParameter("@IP", Request.UserHostAddress))
+
+            pnlConfig.Visible = False
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('System Configuration updated successfully!');", True)
+        Catch ex As Exception
+            ClientScript.RegisterStartupScript(Me.GetType(), "Alert", "alert('Save configuration failed: " & Server.HtmlEncode(ex.Message) & "');", True)
+        End Try
+    End Sub
+
+    ' Log Audit for employee updates
 
     Protected Sub lnkDelete_Click(ByVal sender As Object, ByVal e As EventArgs)
         Dim btn As LinkButton = CType(sender, LinkButton)
