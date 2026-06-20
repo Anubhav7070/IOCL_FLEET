@@ -32,6 +32,7 @@ Public Class AllocationPage
 
     Private Sub LoadVehicles()
         Dim role As String = Session("Role").ToString()
+        Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
         Dim sql As String = "SELECT Id, VehicleNumber || ' (' || VehicleType || ')' As DisplayName FROM Vehicles WHERE (IsDecommissioned = 0 OR IsDecommissioned IS NULL) AND OverallStatus = 'Valid'"
         Dim dt As DataTable
 
@@ -39,6 +40,9 @@ Public Class AllocationPage
             Dim dept As String = Session("Department").ToString()
             sql &= " AND Department = @Dept"
             dt = Database.ExecuteDataTable(sql, New SQLiteParameter("@Dept", dept))
+        ElseIf role = "Employee" Then
+            sql &= " AND EmployeeId = @EmpId"
+            dt = Database.ExecuteDataTable(sql, New SQLiteParameter("@EmpId", empId))
         Else
             dt = Database.ExecuteDataTable(sql)
         End If
@@ -62,6 +66,7 @@ Public Class AllocationPage
         Dim role As String = Session("Role").ToString()
         
         ' 1. Active Allocations
+        Dim empId As Integer = Convert.ToInt32(Session("EmployeeId"))
         Dim sqlActive As String = "SELECT a.Id, v.VehicleNumber, v.VehicleType, emp.EmpNumber, emp.EmployeeName, emp.Department, a.StartDate, a.EndDate, e.EmployeeName As AllocatedByName " &
                                   "FROM VehicleAllocations a " &
                                   "INNER JOIN Vehicles v ON a.VehicleId = v.Id " &
@@ -73,6 +78,9 @@ Public Class AllocationPage
             Dim dept As String = Session("Department").ToString()
             sqlActive &= " AND (emp.Department = @Dept OR v.Department = @Dept)"
             dtActive = Database.ExecuteDataTable(sqlActive, New SQLiteParameter("@Dept", dept))
+        ElseIf role = "Employee" Then
+            sqlActive &= " AND (v.EmployeeId = @EmpId OR a.EmployeeId = @EmpId)"
+            dtActive = Database.ExecuteDataTable(sqlActive, New SQLiteParameter("@EmpId", empId))
         Else
             dtActive = Database.ExecuteDataTable(sqlActive)
         End If
@@ -91,6 +99,9 @@ Public Class AllocationPage
             Dim dept As String = Session("Department").ToString()
             sqlHistory &= " AND (emp.Department = @Dept OR v.Department = @Dept)"
             dtHistory = Database.ExecuteDataTable(sqlHistory, New SQLiteParameter("@Dept", dept))
+        ElseIf role = "Employee" Then
+            sqlHistory &= " AND (v.EmployeeId = @EmpId OR a.EmployeeId = @EmpId) ORDER BY a.CreatedAt DESC"
+            dtHistory = Database.ExecuteDataTable(sqlHistory, New SQLiteParameter("@EmpId", empId))
         Else
             sqlHistory &= " ORDER BY a.CreatedAt DESC"
             dtHistory = Database.ExecuteDataTable(sqlHistory)
@@ -167,10 +178,17 @@ Public Class AllocationPage
                 New SQLiteParameter("@End", endStr),
                 New SQLiteParameter("@AllocBy", userId))
  
-            ' Update current department of the vehicle
+            ' Update current department and EmployeeId of the vehicle
             Database.ExecuteNonQuery(
-                "UPDATE Vehicles SET Department = @Dept, UpdatedAt = datetime('now') WHERE Id = @VehId",
+                "UPDATE Vehicles SET Department = @Dept, EmployeeId = @EmpId, UpdatedAt = datetime('now') WHERE Id = @VehId",
                 New SQLiteParameter("@Dept", dept),
+                New SQLiteParameter("@EmpId", employeeId),
+                New SQLiteParameter("@VehId", vehicleId))
+
+            ' Update EmployeeId of the compliance records of the vehicle
+            Database.ExecuteNonQuery(
+                "UPDATE ComplianceRecords SET EmployeeId = @EmpId, UpdatedAt = datetime('now') WHERE VehicleId = @VehId",
+                New SQLiteParameter("@EmpId", employeeId),
                 New SQLiteParameter("@VehId", vehicleId))
  
             ' Force recalculate compliance status for the vehicle under new department scope
@@ -206,6 +224,18 @@ Public Class AllocationPage
         If e.CommandName = "ReleaseVehicle" Then
             pnlAlert.Visible = False
             Dim allocationId As Integer = Convert.ToInt32(e.CommandArgument)
+            Dim role As String = Session("Role").ToString()
+            Dim loggedInEmpId As Integer = Convert.ToInt32(Session("EmployeeId"))
+
+            If role = "Employee" Then
+                Dim count As Integer = Convert.ToInt32(Database.ExecuteScalar(
+                    "SELECT COUNT(*) FROM VehicleAllocations a INNER JOIN Vehicles v ON a.VehicleId = v.Id WHERE a.Id = @Id AND (v.EmployeeId = @EmpId OR a.EmployeeId = @EmpId)",
+                    New SQLiteParameter("@Id", allocationId), New SQLiteParameter("@EmpId", loggedInEmpId)))
+                If count = 0 Then
+                    ShowAlert("Access Denied: You cannot release this allocation.", "bg-red-50 text-red-700 border border-red-100")
+                    Return
+                End If
+            End If
  
             Try
                 ' Find allocation info, join Employee to get employee name and department
@@ -224,10 +254,30 @@ Public Class AllocationPage
                     "UPDATE VehicleAllocations SET Status = 'Returned', EndDate = @Today WHERE Id = @Id",
                     New SQLiteParameter("@Today", DateTime.Today.ToString("yyyy-MM-dd")),
                     New SQLiteParameter("@Id", allocationId))
+
+                ' Get original creator info
+                Dim dtCreator As DataTable = Database.ExecuteDataTable(
+                    "SELECT CreatedBy FROM Vehicles WHERE Id = @VehId", New SQLiteParameter("@VehId", vehicleId))
+                Dim creatorId As Integer = 1
+                Dim creatorDept As String = "PR - Human Resources"
+                If dtCreator.Rows.Count > 0 AndAlso dtCreator.Rows(0)("CreatedBy") IsNot DBNull.Value Then
+                    creatorId = Convert.ToInt32(dtCreator.Rows(0)("CreatedBy"))
+                    Dim creatorDeptObj As Object = Database.ExecuteScalar(
+                        "SELECT Department FROM Employee WHERE EmployeeId = " & creatorId)
+                    If creatorDeptObj IsNot Nothing Then creatorDept = creatorDeptObj.ToString()
+                End If
  
-                ' Return vehicle back to HR default
+                ' Return vehicle back to original owner
                 Database.ExecuteNonQuery(
-                    "UPDATE Vehicles SET Department = 'PR - Human Resources', UpdatedAt = datetime('now') WHERE Id = @VehId",
+                    "UPDATE Vehicles SET Department = @Dept, EmployeeId = @EmpId, UpdatedAt = datetime('now') WHERE Id = @VehId",
+                    New SQLiteParameter("@Dept", creatorDept),
+                    New SQLiteParameter("@EmpId", creatorId),
+                    New SQLiteParameter("@VehId", vehicleId))
+
+                ' Return compliance records back to original owner
+                Database.ExecuteNonQuery(
+                    "UPDATE ComplianceRecords SET EmployeeId = @EmpId, UpdatedAt = datetime('now') WHERE VehicleId = @VehId",
+                    New SQLiteParameter("@EmpId", creatorId),
                     New SQLiteParameter("@VehId", vehicleId))
  
                 ' Recalculate compliance status

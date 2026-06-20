@@ -12,6 +12,7 @@
             Database.EnsureDocumentHistoryTable()
             Database.EnsureLastAlertSentColumn()
             Database.EnsureIsDecommissionedColumn()
+            Database.EnsureVehiclesCreatedByColumn()
             Database.DropUselessTables()
             Seeder.Seed()
         Catch ex As Exception

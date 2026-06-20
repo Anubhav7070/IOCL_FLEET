@@ -87,7 +87,7 @@ Public Class Database
                     ExecuteSql(conn, "CREATE TABLE IF NOT EXISTS Documents (Id INTEGER PRIMARY KEY AUTOINCREMENT, FileName TEXT NOT NULL, FilePath TEXT NOT NULL, FileType TEXT, FileSize INTEGER, UploadedBy INTEGER, CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(UploadedBy) REFERENCES Employee(EmployeeId) ON DELETE SET NULL);")
 
                     ' 4. Vehicles Table
-                    ExecuteSql(conn, "CREATE TABLE IF NOT EXISTS Vehicles (Id INTEGER PRIMARY KEY AUTOINCREMENT, VehicleNumber TEXT UNIQUE NOT NULL, VehicleType TEXT NOT NULL, Department TEXT DEFAULT 'PR - Human Resources', OwnerDepartment TEXT DEFAULT 'PR - Human Resources', OverallStatus TEXT DEFAULT 'Valid', DocumentId INTEGER, LastUpdatedBy TEXT, LastUpdatedTimestamp TEXT, IsVerified INTEGER DEFAULT 0, VerifiedBy TEXT, EmployeeId INTEGER NOT NULL, CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP, UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(DocumentId) REFERENCES Documents(Id) ON DELETE SET NULL, FOREIGN KEY(EmployeeId) REFERENCES Employee(EmployeeId) ON DELETE CASCADE);")
+                    ExecuteSql(conn, "CREATE TABLE IF NOT EXISTS Vehicles (Id INTEGER PRIMARY KEY AUTOINCREMENT, VehicleNumber TEXT UNIQUE NOT NULL, VehicleType TEXT NOT NULL, Department TEXT DEFAULT 'PR - Human Resources', OwnerDepartment TEXT DEFAULT 'PR - Human Resources', OverallStatus TEXT DEFAULT 'Valid', DocumentId INTEGER, LastUpdatedBy TEXT, LastUpdatedTimestamp TEXT, IsVerified INTEGER DEFAULT 0, VerifiedBy TEXT, EmployeeId INTEGER NOT NULL, CreatedBy INTEGER, CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP, UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(DocumentId) REFERENCES Documents(Id) ON DELETE SET NULL, FOREIGN KEY(EmployeeId) REFERENCES Employee(EmployeeId) ON DELETE CASCADE);")
 
                     ' 5. ComplianceRecords Table
                     ExecuteSql(conn, "CREATE TABLE IF NOT EXISTS ComplianceRecords (Id INTEGER PRIMARY KEY AUTOINCREMENT, VehicleId INTEGER NOT NULL, EmployeeId INTEGER, LicenseType TEXT NOT NULL, LicenseNumber TEXT, IssuingAuthority TEXT, IssueDate TEXT, ExpiryDate TEXT, ReminderFrequency INTEGER, Status TEXT DEFAULT 'Valid', DocumentId INTEGER, LastUpdatedBy TEXT, LastUpdatedTimestamp TEXT, IsVerified INTEGER DEFAULT 0, VerifiedBy TEXT, LastAlertSent TEXT, CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP, UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(VehicleId) REFERENCES Vehicles(Id) ON DELETE CASCADE, FOREIGN KEY(EmployeeId) REFERENCES Employee(EmployeeId) ON DELETE SET NULL, FOREIGN KEY(DocumentId) REFERENCES Documents(Id) ON DELETE SET NULL);")
@@ -262,6 +262,17 @@ Public Class Database
     Public Shared Sub DropUselessTables()
         Try
             ExecuteNonQuery("DROP TABLE IF EXISTS Reports;")
+        Catch
+        End Try
+    End Sub
+
+    Public Shared Sub EnsureVehiclesCreatedByColumn()
+        Try
+            ExecuteNonQuery("ALTER TABLE Vehicles ADD COLUMN CreatedBy INTEGER;")
+        Catch
+        End Try
+        Try
+            ExecuteNonQuery("UPDATE Vehicles SET CreatedBy = EmployeeId WHERE CreatedBy IS NULL;")
         Catch
         End Try
     End Sub

@@ -266,8 +266,8 @@ Public Class VehiclesPage
 
         Try
             ' Insert Vehicle
-            Dim sqlInsert As String = "INSERT INTO Vehicles (VehicleNumber, VehicleType, Department, OwnerDepartment, OverallStatus, IsVerified, EmployeeId, CreatedAt, UpdatedAt) " &
-                                      "VALUES (@Plate, @Type, @Dept, @OwnerDept, 'Valid', 0, @EmpId, datetime('now'), datetime('now'));"
+            Dim sqlInsert As String = "INSERT INTO Vehicles (VehicleNumber, VehicleType, Department, OwnerDepartment, OverallStatus, IsVerified, EmployeeId, CreatedBy, CreatedAt, UpdatedAt) " &
+                                      "VALUES (@Plate, @Type, @Dept, @OwnerDept, 'Valid', 0, @EmpId, @EmpId, datetime('now'), datetime('now'));"
             Database.ExecuteNonQuery(sqlInsert,
                 New SQLiteParameter("@Plate", plate),
                 New SQLiteParameter("@Type", vehicleType),
